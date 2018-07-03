@@ -1,0 +1,56 @@
+---
+title: "Untitled"
+author: "Jiyoon Clover Jeong"
+date: "9/6/2017"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, error = TRUE)
+```
+
+## R Markdown
+
+Some mnath notation
+
+\begin{enumerate}
+  \item[(a)] Show that under these circumstances,
+  \[
+    B_{Y|X} = B_{X|Y} = r_{XY}
+  \]
+  where $B_{Y|X}$ is the least-squares slope for the simple regression of $Y$
+  on $X$; $B_{X|Y}$ is the least-squares slope for the simple regression of
+  $X$ on $Y$; and $r_{XY}$ is the correlation between the two variables. Show
+  that the intercepts are also the same, $A_{Y|X} = A_{X|Y}$. 
+\end{enumerate}
+
+
+Code chunk
+
+```{r prob6a, results='hide', echo=FALSE}
+    #setwd(dir="~/Dropbox/Berkeley/STAT151A/")
+    library(GGally)
+    library(data.table)
+
+    col_names <- c("mpg", "cylinders", "displacement", "horsepower", "weight",
+                   "acceleration", "model_year", "origin", "car_name")
+
+    cars_dt <- data.table(read.table(file="/Users/cloverjiyoon/2017Fall/Stat 151A/HW/HW1/auto-mpg.data.txt",
+                                     header=FALSE,
+                                     col.names=col_names))
+
+    cars_dt[, cylinders := as.factor(cylinders)]
+    cars_dt[, model_year := as.factor(model_year)]
+    cars_dt[, origin := as.factor(origin)]
+```
+
+I chose to investigate the relationship between `mpg`,
+  `displacement` (i.e. engine size) and `horsepower` because the
+  latter two variables have a large correlation (`r cor(cars_dt$displacement, cars_dt$displacement)`), while also seeming to trend quite tightly with
+  `mpg` (correlation of `r cor(cars_dt$mpg, cars_dt$displacement)`
+  between `mpg` and `displacement` and of `r cor(cars_dt$mpg, cars_dt$displacement)` between `mpg` and `horsepower`). However,
+  as the plots indicate, conditioning on either one does not induce any sort of
+  independence between `mpg` and the other. On the other hand, there does
+  seem to be only a slight amount of dependence between `mpg` and
+  `acceleration` once you condition on `horsepower`.
+ 

@@ -1,0 +1,236 @@
+---
+title: 'STAT 151A: Lab 08'
+author: "Billy Fang"
+date: "10/20/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r message=F}
+library(faraway)
+library(car)
+library(ggplot2)
+```
+
+# Reading artifical residual plots
+
+```{r fig.show='hold', fig.width=3, fig.height=3}
+n <- 50
+for(i in 1:9) {x <- runif(n) ; print(qplot(x, rnorm(n)) + xlab("") + ylab(""))}
+```
+
+```{r fig.show='hold', fig.width=3, fig.height=3}
+n <- 50
+for(i in 1:9) {x <- runif(n) ; print(qplot(x, x * rnorm(n)) + xlab("") + ylab(""))}
+```
+
+```{r fig.show='hold', fig.width=3, fig.height=3}
+n <- 50
+for(i in 1:9) {x <- runif(n) ; print(qplot(x, sqrt(x) * rnorm(n)) + xlab("") + ylab(""))}
+```
+
+```{r fig.show='hold', fig.width=3, fig.height=3}
+n <- 50
+for(i in 1:9) {x <- runif(n, min=-1, max=1) ; print(qplot(x, cos(x*pi/25)+rnorm(n,sd=0.005)) + xlab("") + ylab(""))}
+```
+
+
+
+
+
+
+# Non-constant variance
+
+### Variance-stabilizing transformations
+
+The delta method yields
+$$\text{Var}(h(y)) \approx h'(\mathbb{E} y)^2 \text{Var}(y).$$
+This suggests choosing $h$ to satisfy
+$$h'(\mathbb{E} y) \propto \frac{1}{\sqrt{\text{Var}(y)}} = \frac{1}{\text{SD}(y)}.$$
+
+If $\text{SD}(y) \propto \mathbb{E} y$, what is a variance stabilizing $h$?
+
+If $\text{SD}(y) \propto (\mathbb{E} y)^b$ for $b \ne 1$, what is a variance stabilizing
+$h$? If we were to make a plot of log spread (log SD) vs. log mean, what would be
+the slope of the fitted line?
+
+### Species diversity example (counts)
+
+```{r fig.show='hold', fig.width=4, fig.height=3}
+data(gala)
+# help(gala)
+head(gala)
+mod <- lm(Species ~ Area + Elevation + Scruz + Nearest + Adjacent, gala)
+
+qplot(fitted(mod), resid(mod)) +
+  geom_hline(yintercept=0, linetype=2) +
+  xlab("fitted values") +
+  ylab("residuals") +
+  ggtitle("Residuals vs. fitted; orig. model")
+
+qplot(fitted(mod), rstudent(mod)) +
+  geom_hline(yintercept=0, linetype=2) +
+  xlab("fitted values") +
+  ylab("studentized residuals") +
+  ggtitle("Stud. residuals vs. fitted; orig. model")
+
+mod.sqrt <- lm(sqrt(Species) ~ Area + Elevation + Scruz + Nearest + Adjacent, gala)
+
+qplot(fitted(mod.sqrt), resid(mod.sqrt)) +
+  geom_hline(yintercept=0, linetype=2) +
+  xlab("fitted values") +
+  ylab("residuals") +
+  ggtitle("Residuals vs. fitted; sqrt model")
+
+qplot(fitted(mod.sqrt), rstudent(mod.sqrt)) +
+  geom_hline(yintercept=0, linetype=2) +
+  xlab("fitted values") +
+  ylab("studentized residuals") +
+  ggtitle("Stud. residuals vs. fitted; sqrt model")
+```
+
+### SLID example
+
+
+
+From **Fox Section 12.2.**
+
+```{r fig.show='hold', fig.width=4, fig.height=3}
+data(SLID)
+# help(SLID)
+head(SLID)
+SLID <- na.omit(SLID)
+
+mod <- lm(wages ~ sex + age + education, data=SLID)
+qplot(fitted(mod), rstudent(mod)) +
+  geom_hline(yintercept=0, linetype=2) +
+  geom_smooth(method='loess', se=F, method.args=list(degree=1)) +
+  xlab("fitted values") +
+  ylab("studentized residuals") +
+  ggtitle("Residuals vs. fitted; orig. model")
+
+# omit a few points with negative fitted values
+idx <- which(fitted(mod) > 0)
+logval <- log(fitted(mod)[idx])
+logspread <- log(abs(rstudent(mod)[idx]))
+b <- coef(lm(logspread ~ logval))[2]
+b
+qplot(logval, logspread) +
+  geom_smooth(method='lm', se=F) +
+  xlab("log fitted values") +
+  ylab("log abs. studentized residuals") +
+  ggtitle("log stud. res. vs. log fitted; sqrt model")
+
+
+mod.log <- lm(log(wages) ~ sex + age + education, data=SLID)
+qplot(fitted(mod.log), rstudent(mod.log)) +
+  geom_hline(yintercept=0, linetype=2) +
+  geom_smooth(method='loess', se=F, method.args=list(degree=1)) +
+  xlab("fitted values") +
+  ylab("studentized residuals") +
+  ggtitle("Stud. residuals vs. fitted; log model")
+```
+
+
+Transforming the response variable may introduce (or fix) nonlinearity issues
+between the response variable and the explanatory variables.
+
+# Normality
+
+### Reading Q-Q plots
+
+```{r fig.show='hold', fig.width=3, fig.height=3}
+n = 50
+for(i in 1:3) qqnorm(rnorm(n))
+for(i in 1:3) qqnorm(exp(rnorm(n)))
+for(i in 1:3) qqnorm(rt(n, 2))
+for(i in 1:3) qqnorm(runif(n))
+```
+
+### SLID example
+
+From your lecture notes, one type of Q-Q plot that is recommended is
+sorted studentized residual vs. $\frac{1}{n+1}, \frac{2}{n+1}, \ldots, \frac{n}{n+1}$
+quantiles of a $t_{n - p - 2}$ distribution.
+
+From **Fox Section 12.1**.
+
+```{r fig.show='hold', fig.width=3}
+mod <- lm(wages ~ sex + age + education, data=SLID)
+n <- dim(SLID)[1]
+res.df <- df.residual(mod)
+tq <- qt((1:n) / (n+1), res.df)
+
+qplot(tq, sort(rstudent(mod))) + geom_abline(slope=1)
+
+mod.log <- lm(log(wages) ~ sex + age + education, data=SLID)
+qplot(tq, sort(rstudent(mod.log))) + geom_abline(slope=1)
+
+mod.cuberoot <- lm(I(wages^(1/3)) ~ sex + age + education, data=SLID)
+qplot(tq, sort(rstudent(mod.cuberoot))) + geom_abline(slope=1)
+```
+
+
+From Faraway textbook:
+
+> When non-normality is found, the resolution depends on the type of problem found.
+For short-tailed distributions, the consequences of non-normality are not serious and can reasonably be ignored.
+For skewed errors, a transformation of the response may solve the problem.
+For long-tailed errors, we might just accept the non-normality and base the inference on the assumption of another distribution or use resampling methods such as the bootstrap or permutation tests.
+Alternatively, use robust methods, which give less weight to outlying observations but may again require resampling for the inference.
+
+# Discovering groups in diagnostic plots
+
+```{r}
+data(savings)
+mod <- lm(sr ~ ., data=savings)
+summary(mod)
+
+
+# avPlots(mod)
+crPlots(mod)
+# crPlot(mod, variable='pop15', smoother=loessLine)
+qplot(savings$pop15, resid(mod) + coef(mod)['pop15'] * savings$pop15) +
+  geom_smooth(method='lm', se=F, col='red', linetype=2) +
+  geom_smooth(method='loess', se=F, method.args=list(degree=1), col='green') +
+  xlab("pop15") + ylab("component plus residual")
+
+
+mod.sub1 <- lm(sr ~ ., data=savings, subset=(pop15 < 35))
+mod.sub2 <- lm(sr ~ ., data=savings, subset=(pop15 > 35))
+summary(mod)
+summary(mod.sub1)
+summary(mod.sub2)
+```
+
+# Transformations
+
+**Read Fox Chapter 4.**
+
+Key topics:
+
+- Box-Cox family of transformations (Section 4.1, also see lecture notes)
+- Shifting (using a "start") before applying a transformation can deal with negative values as well as deal with situations where the ratio of largest to smallest is very small (for example, if your explanatory variable is years in 2011-2015, using $h(x - 2010)$ rather than $h(x)$)
+- Bulging rule for correcting monotone nonlinearities:
+<img src="bulge.png", width = 1000px />
+
+
+# What to do with outliers (or unusual points)?
+
+From **Fox Section 11.7.**
+
+- It is important to investigate why an observation is unusual. Truly "bad" data (e.g., an error in data entry) can often be corrected or, if correction is not possible, thrown away. When a discrepant data point is correct, we may be able to understand why the observation is unusual.
+- Alternatively, outliers, high-leverage points, or influential data may motivate model respecification, and the pattern of unusual data may suggest the introduction of additional explanatory variables.
+Furthermore, in some instances, transformation of the response variable or of an explanatory variable may draw apparent outliers toward the rest of the data, by rendering the error distribution more symmetric or by eliminating nonlinearity.
+We must, however, be careful to avoid "overfitting" the data
+- Except in clear-cut cases, we are justifiably reluctant to delete observations or to respecify the model to accommodate unusual data. Some researchers reasonably adopt alternative estimation strategies, such as robust regression, which continuously down-weights outlying data rather than simply discarding them.
+- Finally, in large samples, unusual data substantially alter the results only in extreme
+instances. Identifying unusual observations in a large sample, therefore, should be regarded more as an opportunity to learn something about the data not captured by the model that we have fit, rather than as an occasion to reestimate the model with the unusual observations removed.
+
+Cautionary tale from Faraway textbook:
+
+> It is dangerous to exclude outliers in an automatic manner. National Aeronautics and Space Administation (NASA) launched the Nimbus 7 satellite to record atmospheric information. After several years of operation in 1985, the British Antarctic Survey observed a large decrease in atmospheric ozone over the Antarctic. On further examination of the NASA data, it was found that the data processing program automatically discarded observations that were extremely low and assumed to be mistakes. Thus the discovery of the Antarctic ozone hole was delayed several years. Perhaps, if this had been known earlier, the chlorofluorocarbon (CFC) phaseout would have been agreed upon earlier and the damage could have been limited. See Stolarski et al. (1986) for more.

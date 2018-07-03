@@ -1,0 +1,440 @@
+---
+title: 'STAT 151A Lab 05: ANOVA and Sequential ANOVA'
+author: "Billy Fang"
+date: "September 29, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache=T)
+```
+
+```{r message=F}
+library(dplyr)
+library(car)
+```
+
+
+
+# One-way ANOVA
+
+(Read section 8.1 of the textbook.)
+
+```{r}
+data(tips, package="reshape2")
+head(tips)
+levels(tips$day)
+```
+
+Model:
+\begin{align}
+\text{tip}_{i, \text{Fri}} &= \mu_{\text{Fri}} + \epsilon_{i, \text{Fri}}
+\\
+\text{tip}_{i, \text{Sat}} &= \mu_{\text{Sat}} + \epsilon_{i, \text{Sat}}
+\\
+\text{tip}_{i, \text{Sun}} &= \mu_{\text{Sun}} + \epsilon_{i, \text{Sun}}
+\\
+\text{tip}_{i, \text{Thu}} &= \mu_{\text{Thu}} + \epsilon_{i, \text{Thu}}
+\end{align}
+
+Recall that when calling `lm()`, R actually does not do this encoding. Rather it "drops" the dummy variable for the first level (Friday), so the model looks like.
+\begin{align}
+\text{tip}_{i, \text{Fri}} &= \alpha \phantom{{}+\beta_{Fri}{}} + \epsilon_{i, \text{Fri}}
+\\
+\text{tip}_{i, \text{Sat}} &= \alpha + \beta_{\text{Sat}} + \epsilon_{i, \text{Sat}}
+\\
+\text{tip}_{i, \text{Sun}} &= \alpha + \beta_{\text{Sun}} + \epsilon_{i, \text{Sun}}
+\\
+\text{tip}_{i, \text{Thu}} &= \alpha + \beta_{\text{Thu}} + \epsilon_{i, \text{Thu}}
+\end{align}
+
+In other words, $\alpha = \mu_{\text{Fri}}$,
+$\beta_{\text{Sat}} = \mu_{\text{Sat}} - \mu_{\text{Fri}}$,
+$\beta_{\text{Sun}} = \mu_{\text{Sun}} - \mu_{\text{Fri}}$,
+and
+$\beta_{\text{Thu}} = \mu_{\text{Thu}} - \mu_{\text{Fri}}$.
+
+Both of these are different from another encoding given in your lecture notes (see also page 158 of the textbook).
+
+\begin{align}
+\text{tip}_{i, \text{Fri}} &= \mu + \tau_{\text{Fri}} + \epsilon_{i, \text{Fri}}
+\\
+\text{tip}_{i, \text{Sat}} &= \mu + \tau_{\text{Sat}} + \epsilon_{i, \text{Sat}}
+\\
+\text{tip}_{i, \text{Sun}} &= \mu + \tau_{\text{Sun}} + \epsilon_{i, \text{Sun}}
+\\
+\text{tip}_{i, \text{Thu}} &= \mu - (\tau_{\text{Fri}} + \tau_{\text{Sat}} + \tau_{\text{Sun}}) + \epsilon_{i, \text{Thu}}
+\end{align}
+(Think of $\tau_{\text{Thu}} := \tau_{\text{Fri}} + \tau_{\text{Sat}} + \tau_{\text{Sun}}$ and note the constraint that $\tau$ coefficients sum to zero.)
+
+However, all encodings will give the same fitted values $\widehat{\text{tip}}$. (Exercise: why?)
+We are only going to deal with quantities like $\text{RSS}$ and $\text{RegSS}$ today, so the choice of encoding therefore will not matter.
+
+```{r}
+boxplot(tip ~ day, data=tips)
+```
+
+
+```{r}
+mod <- lm(tip ~ day, data=tips)
+anova(mod)
+```
+
+If you do a linear model with one categorical variable,
+and apply `anova()` to the model, you get a one-way ANOVA table. Table 8.1 on page 160 clearly defines the quantities in this table. We will verify them now as well.
+We will see that this table computes the quantities needed for testing
+$$H_0 : \mu_{\text{Fri}} = \mu_{\text{Sat}} = \mu_{\text{Sun}} = \mu_{\text{Thu}}$$
+
+Here, we let $m = 4$ denote the number of levels of the single categorical variable.
+Then our design matrix will be $n \times m$, no matter how we do the encoding (can either drop the intercept term, or drop one of the level's dummy variable).
+
+
+The second row contains familiar quantities: $\text{RSS}$
+and $\text{RSS} / (n - m)$.
+The $n - m$ is because $m$ is the number of columns in our design matrix. (Compare with $n - p - 1$ in regression, where $p+1$ is the number of columns of the design matrix.)
+
+```{r}
+n <- dim(tips)[1]
+levels(tips$day)
+m <- length(levels(tips$day))
+e <- residuals(mod)
+RSS <- sum(e^2)
+RSS
+RSS / (n - m)
+```
+
+The first row contains $\text{RegSS}$
+and $\text{RegSS} / (m - 1)$.
+The $m - 1$ is due to the $m - 1$ constraints.
+```{r}
+y <- tips$tip
+y_bar <- mean(y)
+y_hat <- fitted(mod)
+RegSS <- sum((y_hat - y_bar)^2)
+RegSS
+TSS <- sum((y - y_bar)^2)
+TSS - RSS
+RegSS / (m-1)
+```
+
+The $F$-statistic ends up being the ratio of these quantities. Recall that in general the $F$-statistic looks like
+$$\frac{(\text{RegSS} - \text{RegSS}_0) / (m - 1)}{\text{RSS} / (n - m)}
+= \frac{(\text{RSS}_0 - \text{RSS}) / (m - 1)}{\text{RSS} / (n - m)}$$
+In this case the null model looks like
+$$\text{tip}_i = \mu + \epsilon_i,$$
+so $\widehat{\mu} = \bar{y} = \frac{1}{n} \sum_{i=1}^n y_i$
+and $\text{RegSS}_0 = 0$ and $\text{RSS}_0 = \text{TSS}$.
+
+So the numerator is just
+$\text{RegSS} / (m - 1)$, which is what is computed in the table.
+
+$$\frac{\text{RegSS} / (m - 1)}{\text{RSS} / (n - m)}.$$
+
+```{r}
+Fstat <- (RegSS / (m - 1)) / (RSS / (n - m))
+Fstat
+1 - pf(Fstat, m - 1, n - m)
+```
+
+Note that in lecture, you showed that the $F$-statistic has a special form.
+$$\frac{\sum_{j = 1}^m n_j (\bar{y}_j - \bar{y})^2 / (m - 1)}{\sum_{j=1}^m \sum_{i=1}^{n_j} (y_{ij} - \bar{y}_j)^2 / (n - m)}.$$
+Recall that in this example, $j = 1, \ldots, 4$ indexes the four groups (the four days), and $i$ indexes individual observations within each group.
+
+Recall the decomposition TSS = RSS + RegSS.
+$$ \sum_{j=1}^m \sum_{i=1}^{n_j} (y_{ij} - \bar{y})^2
+=
+\sum_{j=1}^m \sum_{i=1}^{n_j} (y_{ij} - \bar{y}_j)^2
++ \sum_{j = 1}^m n_j (\bar{y}_j - \bar{y})^2$$
+
+```{r, echo=F, fig.width=4, fig.height=5}
+plot(rep(0, n), tips$tip, xlab="", cex=0.8, col=rgb(0,0,0,0.5), main="Tips", ylab="tip")
+points(0, mean(tips$tip), pch=15, col="red")
+
+group_means <- tips %>% group_by(day) %>% summarize(mean(tip))
+plot(as.numeric(tips$day), tips$tip, xlab="day", cex=0.8, col=rgb(0,0,0,0.5), ylab="tip", main="Tips, organized by day")
+points(1:4, group_means[[2]], pch=15, col="red")
+```
+
+```{r, echo=F, fig.width=4, fig.height=4}
+ys <- c(rnorm(10, 0, 0.2), rnorm(10, 3, 0.2), rnorm(10, 1, 0.2), rnorm(10, 2, 0.2))
+xs <- c(rep(1, 10), rep(2, 10), rep(3, 10), rep(4, 10))
+means <- c(mean(ys[1:10]), mean(ys[11:20]), mean(ys[21:30]), mean(ys[31:40]))
+plot(xs, ys, cex=0.8, col=rgb(0,0,0,0.5), ylab="", xlab="", main="Well-separated example")
+points(1:4, means, col="red", pch=15)
+```
+
+
+
+
+# Sequential ANOVA table
+
+What happens when you put an `lm()` object into `anova()`?
+
+From the help file for `anova.lm`:
+
+> Specifying a single object gives a sequential analysis of variance table for that fit. That is, the reductions in the residual sum of squares as each term of the formula is added in turn are given in as the rows of a table, plus the residual sum of squares.
+>
+> The table will contain F statistics (and P values) comparing the mean square for the row to the residual mean square.
+>
+> The table can include test statistics. Normally the F statistic is most appropriate, which **compares the mean square for a row to the residual sum of squares for the largest model considered.**
+
+## Example 1: quantitative variables
+
+```{r}
+data(Prestige)
+mod3 <- lm(prestige ~ education + income + women, data=Prestige)
+anova(mod3)
+```
+
+We have nested models.
+\begin{align}
+\text{prestige}_i
+&= \beta_0 \phantom{{}+ \beta_1 \text{education}_i
++ \beta_2 \text{income}_i
++ \beta_3 \text{women}_i{}}
++ \epsilon_i
+\tag{0}
+\\
+\text{prestige}_i
+&= \beta_0 + \beta_1 \text{education}_i
+\phantom{{}+ \beta_2 \text{income}_i
++ \beta_3 \text{women}_i{}}
++ \epsilon_i
+\tag{1}
+\\
+\text{prestige}_i
+&= \beta_0 + \beta_1 \text{education}_i
++ \beta_2 \text{income}_i
+\phantom{{}+ \beta_3 \text{women}_i{}}
++ \epsilon_i
+\tag{2}
+\\
+\text{prestige}_i
+&= \beta_0 + \beta_1 \text{education}_i
++ \beta_2 \text{income}_i
++ \beta_3 \text{women}_i
++ \epsilon_i
+\tag{3}
+\end{align}
+
+```{r}
+mod0 <- lm(prestige ~ 1, data=Prestige)
+mod1 <- lm(prestige ~ education, data=Prestige)
+mod2 <- lm(prestige ~ education + income, data=Prestige)
+```
+
+```{r}
+RSS0 <- sum(resid(mod0)^2)
+RSS1 <- sum(resid(mod1)^2)
+RSS2 <- sum(resid(mod2)^2)
+RSS3 <- sum(resid(mod3)^2)
+```
+
+```{r}
+y <- Prestige$prestige
+y_bar <- mean(y)
+TSS <- sum((y - y_bar)^2)
+c(RSS0, TSS)
+```
+
+The "Sum Sq" column.
+
+```{r}
+c(RSS0 - RSS1,
+  RSS1 - RSS2,
+  RSS2 - RSS3,
+  RSS3)
+```
+
+The "Mean Sq" column.
+
+```{r}
+n <- dim(Prestige)[1]
+Msq <- c((RSS0 - RSS1) / 1,
+         (RSS1 - RSS2) / 1,
+         (RSS2 - RSS3) / 1,
+         RSS3 / (n - 3 - 1))
+Msq
+```
+
+The F statistics.
+
+```{r}
+Fval <- Msq[1:3] / Msq[4]
+Fval
+```
+
+The $p$-values.
+
+```{r}
+1 - pf(Fval, 1, n - 3 - 1)
+```
+
+So we see that the table computes the following statistics.
+
+\begin{align}
+\frac{(\text{RSS}_0 - \text{RSS}_1)/1}{\text{RSS}_3 / (n - 3 - 1)}
+\tag{a}
+\\
+\frac{(\text{RSS}_1 - \text{RSS}_2)/1}{\text{RSS}_3 / (n - 3 - 1)}
+\tag{b}
+\\
+\frac{(\text{RSS}_2 - \text{RSS}_3)/1}{\text{RSS}_3 / (n - 3 - 1)}
+\tag{c}
+\end{align}
+
+Let us focus on the first statistic (a).
+Under the model with $\beta_1 = \beta_2 = \beta_3 = 0$,
+this actualy follows an $F$-distribution with degrees of freedom $1$ and $n - 3 - 1$.
+
+But we have seen how to do this starting with the model (1) $\text{prestige}_i = \beta_0 + \beta_1 \text{education} + \epsilon_i$
+and testing for $\beta_1 = 0$. The $F$-test in this case is
+$$\frac{(\text{RSS}_0 - \text{RSS}_1)/1}{\text{RSS}_1 / (n - 1 - 1)}.\tag{a'}$$
+(The only difference is the denominator.)
+This also follows an $F$-distribution, but with degrees of freedom $1$ and $n - 1 - 1$.
+*So both (a) and (a') test for whether $\beta_1 = 0$ in this small model (1).*
+But these are different $F$-statistics and will give different $p$-values, as we show below.
+
+Similarly, under the model $\beta_2=\beta_3=0$,
+the second statistic above follows an $F$-distribution with degrees of freedom $1$ and $n - 3 - 1$.
+But if we consider model (2) 
+$\text{prestige}_i
+= \beta_0 + \beta_1 \text{education}_i
++ \beta_2 \text{income}_i
++ \epsilon_i$
+and the hypothesis $\beta_2 = 0$, we have seen that
+$$\frac{(\text{RSS}_1 - \text{RSS}_2)/1}{\text{RSS}_2 / (n - 2 - 1)}\tag{b'}$$
+follows the $F$-distribution with degrees of freedom $1$ and $n - 2 - 1$. *So both (b) and (b') test for $\beta_2 = 0$ in model (2).*
+
+
+In general these $F$-statistics will be different, and will also have different $p$-values.
+
+```{r}
+# computing statistic (a') and p-value
+Fval_alt1 <- ((RSS0 - RSS1) / 1) / (RSS1 / (n - 1 - 1))
+Fval_alt1
+1 - pf(Fval_alt1, 1, n - 1 - 1)
+# statistic (a) and p-value
+Fval[1]
+1 - pf(Fval[1], 1, n - 3 - 1)
+
+# computing statistic (b') and p-value
+Fval_alt2 <- ((RSS1 - RSS2) / 1) / (RSS2 / (n - 2 - 1))
+Fval_alt2
+1 - pf(Fval_alt2, 1, n - 2 - 1)
+# statistic (b) and p-value
+Fval[2]
+1 - pf(Fval[2], 1, n - 3 - 1)
+```
+
+
+
+Finally statistic (c) is the same as what we have learned for testing $\beta_3=0$ in the full model (3).
+
+
+
+
+
+
+
+
+
+
+
+
+### Custom sequence of models
+
+The `anova()` function can take multiple `lm` objects.
+From the `anova.lm` help page:
+
+
+
+> If more than one object is specified, the table has a row for the residual degrees of freedom and sum of squares for each model. For all but the first model, the change in degrees of freedom and sum of squares is also given. (This only make statistical sense if the models are nested.) It is conventional to list the models from smallest to largest, but this is up to the user.
+
+If we input the sequence of all four models
+rather than the largest model,
+we get a table with essentially the same values,
+but with an extra column that contains
+$\text{RSS}_0$, $\text{RSS}_1$, $\text{RSS}_2$, and
+$\text{RSS}_3$.
+```{r}
+anova(mod3)
+anova(mod0, mod1, mod2, mod3)
+```
+Note that each "Sum Sq" entry is the difference between the "RSS" entries in that row and the row above it.
+
+
+Suppose we want to skip model (2), and instead look at the sequence of models (0), (1), and (3).
+
+```{r}
+anova(mod0, mod1, mod3)
+```
+
+
+
+
+## Example 2: categorical variables
+
+Since each categorical variable is represented by multiple dummy variables,
+the degrees of freedoms column may have values $> 1$.
+
+```{r}
+mod3 <- lm(tip ~ day + sex + factor(size), data=tips)
+anova(mod3)
+```
+
+We have three nested models.
+
+```{r}
+mod0 <- lm(tip ~ 1, data = tips)
+mod1 <- lm(tip ~ day, data = tips)
+mod2 <- lm(tip ~ day + sex, data = tips)
+```
+
+```{r}
+RSS3 <- sum(residuals(mod3)^2)
+RSS2 <- sum(residuals(mod2)^2)
+RSS1 <- sum(residuals(mod1)^2)
+RSS0 <- sum(residuals(mod0)^2)
+y <- tips$tip
+y_bar <- mean(y)
+TSS <- sum((y - y_bar)^2)
+TSS
+RSS0
+```
+
+```{r}
+n <- dim(tips)[1]
+df1 <- 3
+df2 <- 1
+df3 <- 5
+```
+
+The "Sum Sq" column.
+
+```{r}
+c(TSS - RSS1,
+  RSS1 - RSS2,
+  RSS2 - RSS3,
+  RSS3)
+```
+
+The "Mean Sq" column.
+
+```{r}
+Msq <- c((TSS - RSS1) / df1,
+  (RSS1 - RSS2) / df2,
+  (RSS2 - RSS3) / df3,
+  RSS3 / (n - df1 - df2 - df3 - 1))
+Msq
+```
+
+```{r}
+Msq[1:3] / Msq[4]
+```
+
+
+
+
+
+

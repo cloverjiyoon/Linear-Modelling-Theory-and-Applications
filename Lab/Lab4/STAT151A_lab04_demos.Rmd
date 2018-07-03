@@ -1,0 +1,67 @@
+---
+title: 'STAT 151A: Lab 4'
+author: "Billy Fang"
+date: "September 22, 2017"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+```{r}
+
+dat <- read.csv("/Users/cloverjiyoon/2017Fall/Stat 151A/Lab/Lab3/bodyfat.csv")
+n <- dim(dat)[1]
+p <- 4
+q <- 2
+fit <- lm(bodyfat ~ Weight + Height + Chest + Abdomen, data=dat)
+RSS <- sum(resid(fit)^2)
+```
+
+Test for $H_0 : \beta_{weight} = \beta_{height}, \beta_{chest} = -2 \beta_{abdomen}$.
+The model can then be rewritten as
+$$\text{bodyfat} = \beta_0 + \beta_{weight} (\text{weight} + \text{height}) + \beta_{abdomen} (\text{abdomen} - 2 \cdot \text{chest})$$
+
+Use formula
+$$
+\frac{(\text{RSS}(m) - \text{RSS}(M)) / q}{\text{RSS}(M) / (n - p - 1)}.
+$$
+
+```{r}
+fit0 <- lm(bodyfat ~ I(Weight + Height) + I(-2 * Chest + Abdomen), data=dat)
+RSS0 <- sum(resid(fit0)^2)
+Fstat1 <- ((RSS0 - RSS) / 2) / (RSS / (n - p - 1))
+```
+
+Can write hypothesis as $H_0 : L \beta = 0$, where
+$$L = \begin{bmatrix}
+0 & 1 & -1 & 0 & 0
+\\
+0 & 0 & 0 & 1 & 2
+\end{bmatrix}.$$
+
+Use formula
+$$\frac{(L\hat{\beta} - c)^\top [L (X^\top X)^{-1} L^\top]^{-1} (L\hat{\beta} - c) / q}{\text{RSS}(M) / (n - p - 1)}.$$
+
+```{r}
+X <- as.matrix(cbind(1, dat[,c("Weight", "Height", "Chest", "Abdomen")]))
+y <- as.numeric(dat$bodyfat)
+beta_hat <- solve(t(X) %*% X, t(X) %*% y)
+y_hat <- X %*% beta_hat
+L <- matrix(c(0,0,1,0,-1,0,0,1,0,2), 2)
+Fstat2 <- (t(L %*% beta_hat) %*% solve(L %*% solve(t(X) %*% X) %*% t(L)) %*% (L %*% beta_hat) / q) / (sum((y - y_hat)^2) / (n - p - 1))
+```
+
+Check that they match.
+```{r}
+Fstat1
+Fstat2
+```
+
+
+

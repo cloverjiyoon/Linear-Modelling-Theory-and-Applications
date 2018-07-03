@@ -1,0 +1,606 @@
+\documentclass[10pt,titlepage]{article}
+
+\usepackage{../mcgill}
+
+\newcommand{\Solution}{\paragraph{\textit{Solution.}}}
+\newcommand{\y}{\mathbf{y}}
+\newcommand{\x}{\mathbf{x}}
+\renewcommand{\b}{\mathbf{b}}
+\newcommand{\one}{\mathbf{1}}
+\newcommand{\zero}{\mathbf{0}}
+\renewcommand{\I}{\mathbf{I}}
+\renewcommand{\N}{\mathcal{N}}
+
+% \renewcommand{\O}{\mathcal{O}}
+% \renewcommand{\Q}{\mathcal{Q}}
+% \renewcommand{\H}{\mathcal{H}}
+
+
+\begin{document}
+<<globalParameters,echo=FALSE,cache=FALSE>>=
+set.seed(1234)
+opts_chunk$set(comment="#",
+               tidy=FALSE,
+               warning=FALSE,
+               message=FALSE,
+               highlight=TRUE,
+               echo=FALSE,
+               cache=TRUE,
+               fig.align='center',
+               fig.pos="ht",
+               dev='pdf',
+               fig.show='hold',
+               fig.keep='all',
+               out.width="0.49\\textwidth")
+@
+
+%%%%% knitr code to make sure things stay inside listings box:
+<<stayInside,echo=FALSE>>=
+  options(width=60)
+  listing <- function(x, options) {
+     paste("\\begin{lstlisting}[basicstyle=\\ttfamily,breaklines=true]\n",
+           x,"\\end{lstlisting}\n", sep = "")
+  }
+  
+  knit_hooks$set(source=listing, output=listing)
+@
+
+<<loadLibraries, cache=FALSE, results='hide'>>=
+library(nnet)
+library(MASS)
+library(leaps)
+library(glmnet)
+library(doParallel)
+registerDoParallel(cores=detectCores())
+@
+\paragraph{\#1. -- Exercise 22.1} Variable selection with randomly generated ``noise'' (adapted from Freedman, 1983):
+\begin{enumerate}
+  \item[(a)] Sampling from the standard normal distribution, independently
+  generate 500 observations for 101 variables. Call the first of these 
+  variables the response variable $Y$ and the other variables the predictors 
+  $X_1, X_2, \ldots, X_{100}$. Perform a linear least-squares regression of 
+  $Y$ on $X_1, X_2, \ldots, X_{100}$. Are any of the individual regression 
+  coefficients ``statistically significant''? Is the omnibus $F$-statistic for 
+  the regression ``statistically significant''? Is this what you expected to 
+  observe?
+  <<q1a, echo=TRUE>>=
+  data <- data.frame(mvrnorm(n=500, mu=rep.int(0, 101), Sigma=diag(nrow=101)))
+  colNames <- c("Y", paste0("X", seq.int(100)))
+  colnames(data) <- colNames
+  lmfit <- lm(formula=Y ~ ., data=data)
+  lmSummary <- summary(lmfit)
+  analyzeLinearModel <- function(lmSummary) {
+    pValues <- lmSummary$coefficients[, 4]
+    statSigVars <- names(which(pValues <= 0.05))
+    statSig_pvalues <- pValues[statSigVars]
+    numOfSigVars <- length(statSigVars)
+    
+    cat(paste0("There were ", numOfSigVars, " variables with t-statistics",
+                 " with p-values below 0.05:\n"))
+    print(statSig_pvalues)
+    
+    Fstat <- lmSummary$fstatistic
+    Fstat_pvalue <- pf(Fstat[1], Fstat[2], Fstat[3], lower.tail=FALSE)
+    
+    isFStatSig <- Fstat_pvalue <= 0.05
+
+    if (isFStatSig) {
+      cat(paste0("The F-statistic had a p-value below 0.05: ",
+                 round(Fstat_pvalue, 5), "\n"))
+    } else {
+      cat(paste0("The F-statistic had a p-value below 0.05: ",
+                 round(Fstat_pvalue, 5), "\n"))
+    }
+  }
+  
+  analyzeLinearModel(lmSummary)
+  @
+  Honestly, the only variable I expected to be significant was the intercept.
+  Why would regressing on variables that have \textit{nothing} to do with the
+  response yield significance?
+  
+  \item[(b)] Retain the three predictors in part (a) that have the largest 
+  absolute $t$-values, regressing $Y$ \textit{only} on these variables. Are 
+  the individual coefficients ``statistically significant''? What about the 
+  omnibus $F$? What happens to the $p$-values compared to part (a). 
+  
+  <<q1b, dependson=c("q1a"), echo=TRUE>>=
+  top3Vars <- names(sort(abs(lmSummary$coefficients[, 3]),
+                         decreasing=TRUE)[1:3])
+
+  regrForm <- as.formula(paste0("Y ~ ", paste(top3Vars, collapse=" + ")))
+  lmfit2 <- lm(formula=regrForm, data=data)
+  analyzeLinearModel(summary(lmfit2))
+  @
+  For some variables the $p$-values go down, and other the values go up. 
+  However, all three predictors have statistically significant values and the 
+  $F$-statistic is now significant.
+  
+  \item[(c)] Using any method of variable selection (stepwise regression or 
+  subset regression with any criterion), find the ``best'' model with three 
+  explanatory variables. Obtain the individual $t$-statistics and omnibus $F$ 
+  for this model. How do these tests compare to those in part (a)?
+  
+  <<q1c, dependson=c("q1a"), echo=TRUE>>=
+  leapsObj <- regsubsets(x=as.matrix(data[,-1]), y=as.matrix(data[,1]),
+                         nbest=1, nvmax=3, intercept=TRUE,
+                         really.big=TRUE, method="exhaust" )
+  bestVars <- intersect(colNames,
+                        names(which(summary(leapsObj)$which[3,] == TRUE)))
+
+  regrForm2 <- as.formula(paste0("Y ~ ", paste(bestVars, collapse=" + ")))
+  lmfit3 <- lm(formula=regrForm2, data=data)
+  analyzeLinearModel(summary(lmfit3))
+  @
+  
+  The best subsets model, as returned by \texttt{regsubsets} has the 
+  regression formula
+  <<>>=
+  regrForm2
+  @ 
+  Whereas, the top 3 $t$-statistic model has the regression formula
+  <<>>=
+  regrForm
+  @
+  The $p$-values for the variables (and the $F$-stat) in the former model are 
+  all lower than than the $p$-values in the latter model. They're also a lot
+  smaller than the significant variables in the full model fit in (a).
+  
+  \item[(d)] Using the methods of model selection discussed in this chapter, 
+  find the ``best'' model for these data. How does the model compare to the 
+  true model that generated the data?
+  
+  <<q1d, dependson=c("q1a"), echo=TRUE>>=
+  lassoFit <- cv.glmnet(x=as.matrix(data[,-1]), y=as.matrix(data[,1]),
+                        nlambda=300, alpha=1, standardize=FALSE,
+                        parallel=TRUE)
+
+  lassoVars <- rownames(coef(lassoFit, s="lambda.min"))[which(coef(lassoFit,
+                                                      s="lambda.min") != 0)]
+  @
+  Though they don't discuss the lasso in this chapter, it's just as valid
+  a method of model selection, so we'll use \texttt{glmnet} to do model
+  selection in that way. Unsurprisingly, lasso isn't fooled by the noise, 
+  and the cross-validated $\lambda$ places the best model at
+  <<>>=
+  as.formula(paste0("Y ~ ", paste(lassoVars, collapse=" + ")))
+  @
+  which is the null-model.
+  \item[(e)] Validation: Generate a new set of 500 observations as in part(a), 
+  and use the new dataset to validate the models that you slected in parts 
+  (b), (c), and (d). What do you conclude?
+  <<q1e, dependson=c("q1a", "q1b", "q1c", "q1d"), echo=TRUE>>=
+  newdata <- data.frame(mvrnorm(n=500, mu=rep.int(0, 101),
+                                Sigma=diag(nrow=101)))
+  colnames(newdata) <- colNames
+  preds <- list(m1Preds = predict(lmfit, newdata=newdata[,-1],),
+               m2Preds = predict(lmfit2, newdata=newdata[,-1]),
+               m3Preds = predict(lmfit3, newdata=newdata[,-1]),
+               lassoPreds = predict(lassoFit, newx=as.matrix(newdata[,-1]),
+                                s="lambda.min"))
+
+  modelMSEs <- sapply(preds,
+                      FUN=function(preds) mean((newdata[,1] - preds)^2))
+  
+  modelMSEs
+  @
+  We can conclude that \Sexpr{names(modelMSEs)[which.min(modelMSEs)]} has 
+  the lowest MSE.
+  \item[(f)] Repeat the entire experiment several times.
+  <<q1fa>>=
+  analyzeLinearModel <- function(lmSummary) {
+    pValues <- lmSummary$coefficients[, 4]
+    statSigVars <- names(which(pValues <= 0.05))
+    statSig_pvalues <- pValues[statSigVars]
+    numOfSigVars <- length(statSigVars)
+    
+    cat(paste0("There were ", numOfSigVars, " variables with t-statistics",
+                 " with p-values below 0.05:\n"))
+    print(statSig_pvalues)
+    
+    Fstat <- lmSummary$fstatistic
+    Fstat_pvalue <- pf(Fstat[1], Fstat[2], Fstat[3], lower.tail=FALSE)
+    
+    isFStatSig <- Fstat_pvalue <= 0.05
+
+    if (isFStatSig) {
+      cat(paste0("The F-statistic had a p-value below 0.05: ",
+                 round(Fstat_pvalue, 5), "\n"))
+    } else {
+      cat(paste0("The F-statistic had a p-value below 0.05: ",
+                 round(Fstat_pvalue, 5), "\n"))
+    }
+  }
+  
+  experiment <- function(i) {
+    cat("\n ************ experiment ", i, "*************** \n")
+    
+    data <- data.frame(mvrnorm(n=500, mu=rep.int(0, 101),
+                               Sigma=diag(nrow=101)))
+    colNames <- c("Y", paste0("X", seq.int(100)))
+    colnames(data) <- colNames
+    lmfit <- lm(formula=Y ~ ., data=data)
+    lmSummary <- summary(lmfit)
+    
+    cat("Full model summary:\n")
+    analyzeLinearModel(lmSummary)
+    
+    top3Vars <- names(sort(abs(lmSummary$coefficients[, 3]),
+                         decreasing=TRUE)[1:3])
+  
+    regrForm <- as.formula(paste0("Y ~ ", paste(top3Vars, collapse=" + ")))
+    lmfit2 <- lm(formula=regrForm, data=data)
+    
+    cat("\nTop 3 t-stat model summary: \n")
+    analyzeLinearModel(summary(lmfit2))
+    
+    leapsObj <- regsubsets(x=as.matrix(data[,-1]), y=as.matrix(data[,1]),
+                         nbest=1, nvmax=3, intercept=TRUE,
+                         really.big=TRUE, method="exhaust" )
+    
+    bestVars <- intersect(colNames,
+                          names(which(summary(leapsObj)$which[3,] == TRUE)))
+  
+    regrForm2 <- as.formula(paste0("Y ~ ", paste(bestVars, collapse=" + ")))
+    lmfit3 <- lm(formula=regrForm2, data=data)
+    
+    cat("\nBest 3-variable Subset model Summar:\n")
+    analyzeLinearModel(summary(lmfit3))
+        
+    lassoFit <- cv.glmnet(x=as.matrix(data[,-1]), y=as.matrix(data[,1]),
+                          nlambda=300, alpha=1, standardize=FALSE,
+                          parallel=TRUE)
+  
+    lassoVars <- rownames(coef(lassoFit, s="lambda.min"))[which(coef(lassoFit,
+                                                        s="lambda.min") != 0)]
+    
+    cat("\nBest LASSO model:\n")
+    cat(paste0("Y ~ ", paste(lassoVars, collapse=" + "), "\n\n"))
+    
+    newdata <- data.frame(mvrnorm(n=500, mu=rep.int(0, 101),
+                                  Sigma=diag(nrow=101)))
+    colnames(newdata) <- colNames
+    preds <- list(m1Preds = predict(lmfit, newdata=newdata[,-1],),
+                 m2Preds = predict(lmfit2, newdata=newdata[,-1]),
+                 m3Preds = predict(lmfit3, newdata=newdata[,-1]),
+                 lassoPreds = predict(lassoFit, newx=as.matrix(newdata[,-1]),
+                                  s="lambda.min"))
+  
+    modelMSEs <- sapply(preds,
+                        FUN=function(preds) mean((newdata[,1] - preds)^2))
+    
+    modelMSEs
+  }
+  @
+  <<q1fb, dependson=c("q1fa"), echo=FALSE>>=
+  experimentResults <- sapply(X=seq.int(5),FUN=experiment)
+  @
+  <<dependson=c("q1fb")>>=
+  experimentResults
+  @
+  The LASSO model has the lowest MSE of all models every time.
+\end{enumerate}
+\paragraph{\#2.} 
+\newcommand{\hb}{\hat{\beta}}
+\begin{enumerate}
+  \item[(a)] Since, $\hb_{OLS} = (X^T X)^{-1} X^T Y$, notice that we can write
+  \begin{align*}
+  \hb_{ridge} &= (X^T X + \lambda I)^{-1} X^T Y \\
+  &= (X^T X + \lambda I)^{-1} \biggl((X^T X) (X^T X)^{-1}\biggr) X^T Y \\
+  &= (X^T X + \lambda I)^{-1} X^T X \hb_{OLS} \\
+  &= c_{\lambda} \hb_{OLS}
+  \end{align*}
+  For $X$, a mean-centered vector, $X^T X = \SUM{i}{1}{n} x_i^2 \geq 0$. Hence,
+  $(X^T X + \lambda) \geq 0$ (for $\lambda \geq 0$) and thus 
+  $c_{\lambda} = (X^{T}X)/(X^T X + \lambda) \leq 1$ (with equality iff $\lambda
+  = 0$). This demonstrates that $\hb_{ridge} < \hb_{OLS}$ for $\lambda > 0$. 
+  \item[(b)] Using the form of $\hb_{ridge}$ in part (a), we have that
+  \begin{align*}
+  bias &= E[\hb_{ridge}] - \beta \\
+  &= E[c_{\lambda}\hb_{OLS}] - \beta \\
+  &= c_{\lambda}E[\hb_{OLS}] - \beta \\
+  &= (c_{\lambda} - 1)\beta 
+  \intertext{and}
+  \var(\hb_{ridge}) &= \var(c_{\lambda}\hb_{OLS}) \\
+  &= c_{\lambda}^2 \var(\hb_{OLS}) \\
+  &= c_{\lambda}^{2} \sigma^2 (X^T X)^{-1}
+  \end{align*}
+  \item[(c)] Since $MSE = bias^2 + variance$, and we know that $\hb_{OLS}$ is
+  unbiased, we have that $MSE_{OLS} = \sigma^2 (X^T X)^{-1}$. Furthermore, 
+  using part (b), we know that $MSE_{ridge} 
+  = (c_{\lambda}-1)^2 \beta^2 + c_{\lambda}^2 \sigma^2 (X^T X)^{-1}$. Taking 
+  the difference and solving for $\beta^2$ yields the following inequality:
+  \[
+  \sigma^2(X^T X)^{-1}(1-c_{\lambda}^2) - \beta^2 (c_{\lambda}-1)^{2} > 0
+  \EQ
+  \beta^2 < \sigma^2 \left(\frac{\lambda + 2 X^T X}{\lambda X^T X}\right)
+  \]
+  Alternatively, we could have solved for $\sigma^2$ and instead written:
+  \[
+  MSE_{ridge} < MSE_{OLS}
+  \EQ
+  \sigma^2 > \beta^2  \left(\frac{\lambda X^T X}{\lambda + 2 X^T X}\right)
+  \]
+  Thus, we see that small values of $\beta^2$ and large values of $\sigma^2$
+  tend to favor Ridge over OLS.
+\end{enumerate}
+
+\paragraph{\#3}
+\begin{enumerate}
+  \item[(a)]
+  \begin{align*}
+  R^{2}_{adj, 1} > R^{2}_{adj, 0} 
+  &\EQ 1 - \frac{n-1}{n-(p_1 +1)}\frac{RSS_1}{TSS}
+  > 1 - \frac{n-1}{n-(p_0 +1)}\frac{RSS_0}{TSS} \\
+  &\EQ \frac{n-1}{n-(p_1 +1)}{RSS_1}
+  > - \frac{n-1}{n-(p_0 +1)}{RSS_0} \\
+  &\EQ \frac{RSS_1}{n-(p_1 +1)}
+  < \frac{RSS_0}{n-(p_0 +1)} \\
+  &\EQ \frac{RSS_1}{RSS_0} < \frac{n-(p_1+1)}{n-(p_0+1)}
+  \stackrel{\Delta}{=} f_1(n,p_0, p_1)
+  \end{align*}
+  and
+  \begin{align*}
+  AIC_1 < AIC_0 &
+  \EQ n\log\left(\frac{RSS_1}{n}\right) 
+  + n\log(2\pi e) + 2(1+p_1) 
+  < n\log\left(\frac{RSS_0}{n}\right) + n\log(2\pi e)
+  + 2(1+p_0) \\
+  &\EQ \log\left(\frac{RSS_1}{RSS_0}\right)
+  <\frac{2}{n}(p_0 - p_1) \\
+  &\EQ 
+  \frac{RSS_1}{RSS_0} < \exp\set{\frac{2}{n}(p_0 - p_1)}
+  \stackrel{\Delta}{=} f_2(n, p_0, p_1)
+  \end{align*}
+  \item[(b)] For both criteria to decided on the larger model, we need
+  \[
+  \frac{RSS_1}{RSS_0} < f_1(n,p_0,p_1) \text{ and } 
+  \frac{RSS_1}{RSS_0} < f_1(n,p_0,p_1) 
+  \EQ \frac{RSS_1}{RSS_0} < \min\set{f_1,f_2}
+  \]
+  For both criteria to decide on the smaller model, we need
+    \[
+  \frac{RSS_1}{RSS_0} \geq f_1(n,p_0,p_1) \text{ and } 
+  \frac{RSS_1}{RSS_0} \geq f_1(n,p_0,p_1) 
+  \EQ \frac{RSS_1}{RSS_0} \geq \max\set{f_1,f_2}
+  \]
+  For one criterion to pick the larger, and the other the smaller, we need
+  \[
+  \min\set{f_1,f_2} \leq \frac{RSS_1}{RSS_0} < \max\set{f_1,f_2}
+  \]
+  Now, to determine which criterion more harshly penalizes model complexity, 
+  observe that for a fixed $p_0$ and $n$ (and $p_1 > p_0$), an increase in
+  $p_1$ causes a linear decrease in $f_1$ and an exponential decay in $f_2$. 
+  In particular, for $p_1 = cp_0$ where $c \geq 1$, we see that $f_2$ shrinks 
+  more rapidly, as a function of $c$ than $f_1$ does. This means that as the 
+  larger model contains many times more variables than the smaller model, 
+  $AIC$ will have a harder time justifying an adoption of the larger model, 
+  over the smaller.
+\end{enumerate}
+
+\paragraph{\#4} 
+Given the number of variables in the dataset, an "all subsets" model-selection 
+process is computationally intractable. Hence, I performed my analysis on 
+models selected via backwards stepwise, LASSO, and Ridge regression. It seemed 
+that taking the $\log$ of \texttt{inctot} (after shifting the values to all be 
+non-negative) normalized the means of most of the categorical
+variables, so my model is actually on \texttt{logInc} which is defined as 
+\texttt{log(inctot + 10001)}. I'm not entirely sure why there's a negative 
+income in this dataset, but removing these 22 values seemed unjustified, so I 
+decided to keep them. Given my little expetise on the matter, I thought that a 
+full model would include interaction terms between \texttt{sex} and \texttt{
+educ} and the race variables, \texttt{hispan, white, black, aian, asian} (I 
+also included interactions between \texttt{sex} and \texttt{educ}). This 
+yielded a full model with 716 variables. I then used the coefficients that 
+were \texttt{NA} in the basic, full-model, linear regression to indicate which 
+predictors were effectively co-linear. Once these were removed, there were 356 
+predictors. Of the three model creation methods:
+\begin{itemize}
+  \item backwards stepwise regression paired this down to 119 predictors
+  \item lasso regression suggested we reduce the model to 15 predictors
+  \item ridge regression does not do any model selection, so it just gave very
+  small coefficients for all 356 predictors.
+\end{itemize}
+  
+Since \texttt{glmnet} cross-validates MSE for us, the only out-of-the-box
+cross-validation needed was on the MSE for the stepwise regression. As the 
+output below indicates, all three methods' cross-validated MSE's were quite
+pessimistic; all methods did better on the heldout data than the 
+cross-validated estimate.
+<<q4a>>=
+setwd("~/Dropbox/Berkeley/STAT151A/")
+
+source("./HW_solutions/HW4/kFoldCV.R")
+
+censusData <- read.table(file="HW_solutions/HW4/censusSmallTrain.txt",
+                         header=TRUE)
+
+formatCensusData <- function(censusData) {
+  
+  censusData[, 1] <- log(censusData$inctot + 10000 + 1)
+  names(censusData)[1] <- "logInc"
+  
+  # categorical variables:
+  catVars <- c("sex", "hispan", "white", "black", "aian", "asian",
+               "nhpi", "other", "race1", "marstat", "educ", "speak",
+               "citizen", "abwork", "disable", "military", "milyrs",
+               "esr", "lastwrk", "clwkr", "worklyr", "tenure",
+               "hht", "fnf", "hhl", "empstat", "paoc", "parc",
+               "p65", "wif")
+  
+  interactionVars <- c("sex", "educ")
+  raceVars <- c("hispan", "white", "black", "aian", "asian")
+  
+  # probably want interactions between sex, race and educ.
+  
+  # remove disable and yr2us most likely...
+  # numeric
+  numVars <- c("logInc", "age", "pweight", "inctot", "persons",
+               "p18", "npf", "noc", "nrc", "yr2us", "weeks")
+
+  # unroll categorical variables:
+  
+  require(nnet)
+  
+  catData <- as.data.frame(sapply(X=catVars, function(varName) {
+    class.ind(censusData[, varName])
+  }))
+  
+  makeInteractionMat <- function(interactionVars, raceVars) {
+    tmp <-lapply(interactionVars, function(interactionVar) {
+      interDummyMat <- class.ind(censusData[, interactionVar])
+      colnames(interDummyMat) <- paste0(interactionVar, ".", colnames(interDummyMat))
+      lapply(raceVars, function(raceVar) {
+        dummyMat <- class.ind(censusData[, raceVar])
+        colnames(dummyMat) <- paste0(raceVar, ".", colnames(dummyMat))
+        tmp <- lapply(colnames(interDummyMat), function(interLevel) {
+          col1 <- interDummyMat[, interLevel]
+          out <- data.frame(apply(dummyMat, 2, function(col2) col1 * col2))
+          colnames(out) <- paste0(interLevel, ".x.", colnames(dummyMat))
+          out
+        })
+        do.call(cbind, tmp)
+      })
+    })
+    
+    do.call(cbind, lapply(tmp, function(x) do.call(cbind, x)))
+  }
+  
+  # create iteractions between sex, education, and race
+  interactionMat <- makeInteractionMat(interactionVars, raceVars)
+  interactionMat <- cbind(interactionMat,
+                          makeInteractionMat("sex", "educ"))
+  
+  numData <- censusData[, numVars[-4]] #exclude inctot -- predict logInc instead
+  
+  cbind(numData, catData, interactionMat)
+}
+
+data <- formatCensusData(censusData)
+
+holdoutData <- read.table(file="HW_solutions/HW4/censusSmallTest.txt",
+                          header=TRUE)
+
+holdoutData <- formatCensusData(holdoutData)
+@
+<<q4colinearity, dependson=c("q4a")>>=
+# infer colinearity from lm
+lmfit <- lm(logInc ~ ., data=data)
+colinVars <- names(which(is.na(coefficients(lmfit))))
+
+untangledData <- subset(data, select=!(colnames(data) %in% colinVars))
+
+lmfit2 <- lm(logInc ~ ., data=untangledData)
+# summary(lmfit2) # no more NA's which is good
+@
+<<q4stepwise, dependson=c("q4colinearity")>>=
+backwardsStepwiseFit <- regsubsets(x=as.matrix(subset(untangledData,
+                                                      select=-logInc)),
+                                  y=untangledData[, "logInc"],
+                                  method=c("backward"),
+                                  really.big = TRUE, nvmax=356)
+
+stepwiseSummary <- summary(backwardsStepwiseFit)
+
+stepwiseVars <- names(subset(untangledData, select=-logInc))[
+                  stepwiseSummary$which[which.max(stepwiseSummary$adjr2),][-1]
+                  ]
+
+#length(stepwiseVars) # 119
+stepwiseFormula <- as.formula(paste0("logInc ~ ",
+                                     paste(stepwiseVars, collapse="+")))
+
+stepwiseModel <- lm(stepwiseFormula, untangledData)
+
+# summary(stepwiseModel)
+@
+
+<<q4lasso, dependson=c("q4colinearity")>>=
+# do lasso and ridge
+lassoFit <- cv.glmnet(x=as.matrix(subset(untangledData, select=-logInc)),
+                      y=untangledData[, "logInc"],
+                      alpha=1,
+                      parallel=TRUE,
+                      standardize=FALSE)
+
+lassoVars <- rownames(coef(lassoFit, s=0))[
+                  which(coef(lassoFit, s="lambda.min") != 0)][-1]
+
+lassoMSE <- min(lassoFit$cvm) # 0.3518
+@
+
+<<q4ridge, dependson=c("q4colinearity")>>=
+ridgeFit <- cv.glmnet(x=as.matrix(subset(untangledData, select=-logInc)),
+                      y=untangledData[, "logInc"],
+                      alpha=0,
+                      parallel=TRUE,
+                      standardize=FALSE)
+
+ridgeVars <- rownames(coef(ridgeFit, s=0))[
+               which(coef(ridgeFit, s="lambda.min") != 0)][-1]
+
+ridgeMSE <- min(ridgeFit$cvm) # 0.3861
+@
+
+<<q4cv, dependson=c("q4colinearity", "q4stepwise")>>=
+# cross validate MSE of step-wise model:
+
+f <- function(data, newdata, k) {
+  model <- lm(formula=stepwiseFormula, data=data)
+  preds <- predict(model, newdata=newdata)
+  (preds - newdata[,1])^2
+}
+
+stepwiseMSE <- kFoldCV(proc=f, k=10,
+                       data=untangledData,
+                       params=data.frame(k=1)) # 0.318
+
+@
+
+<<q4validation, dependson=c("q4a", "q4stepwise", "q4lasso", "q4ridge")>>=
+# sanity check:
+#which(!(lassoVars %in% colnames(holdoutData) )) # 0
+
+stepwiseCoefs <- coef(stepwiseModel)
+stepwisePreds <- apply(subset(holdoutData, select=stepwiseVars), 1,
+                       function(row) c(1,row) %*% stepwiseCoefs )
+
+stepwiseMSE_holdout <- mean((holdoutData[, "logInc"] - stepwisePreds)^2) # 0.254
+
+# which(!(stepwiseVars %in% colnames(holdoutData) )) # 0
+
+lassoCoefs <- coef(lassoFit,s="lambda.min")[c("(Intercept)",lassoVars),]
+lassoPreds <- apply(subset(holdoutData, select=lassoVars), 1, function(row){
+                c(1,row) %*% lassoCoefs
+                })
+
+lassoMSE_holdout <- mean((holdoutData[, "logInc"] - lassoPreds)^2) # 0.275
+
+# which((ridgeVars %in% colnames(holdoutData) )) # 15, 28, 78, 137!!
+
+# relevant columns in holdoutData
+ridgeCoefs <- coef(ridgeFit,s="lambda.min")[c(1,
+                  which(
+                    c("Intercept",ridgeVars) %in% colnames(holdoutData))
+                  ),] # 15, 28, 78, 137!!
+
+ridgePreds <- apply(subset(holdoutData, select=names(ridgeCoefs[-1])), 1,
+                    function(row) c(1,row) %*% ridgeCoefs )
+
+
+ridgeMSE_holdout <- mean((holdoutData[, "logInc"] - ridgePreds)^2) # 0.308
+
+results <- matrix(c(stepwiseMSE, stepwiseMSE_holdout,
+                    lassoMSE, lassoMSE_holdout,
+                    ridgeMSE, ridgeMSE_holdout),
+                  byrow=TRUE, ncol=2)
+
+colnames(results) <- c("CV MSE", "Holdout MSE")
+rownames(results) <- c("stepwise", "lasso", "ridge")
+@
+
+<<q4results, dependson=c("q4validation")>>=
+results
+@
+
+\end{document}

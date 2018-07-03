@@ -1,0 +1,127 @@
+\ProvidesPackage{mcgill}
+
+\usepackage[totalheight=9in, totalwidth=6.5in]{geometry}
+\usepackage{graphicx}
+\usepackage{amsthm, amsmath, amssymb}
+%\usepackage{diagrams}
+\usepackage{wrapfig,hyperref}
+\usepackage{listings}
+\usepackage{inconsolata,palatino}
+
+\newtheorem{definition}{Definition}
+\newtheorem{exercise}{Exercise}
+\newtheorem{problem}{Problem}
+\newtheorem{example}{Example}
+
+%\numberwithin{definition}{section}
+\numberwithin{exercise}{section}
+\numberwithin{problem}{section}
+\numberwithin{example}{section}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{cor}{Corollary}
+\newtheorem{prop}{Proposition}
+
+%\numberwithin{theorem}{section}
+%\numberwithin{lemma}{section}
+%\numberwithin{cor}{section}
+
+\newcommand{\defn}{\paragraph{Definition}}
+
+% common operators 
+\DeclareMathOperator{\im}{im}
+\DeclareMathOperator{\Span}{span}
+\DeclareMathOperator{\dom}{dom}
+\DeclareMathOperator{\range}{range}
+\DeclareMathOperator{\rank}{rank}
+\DeclareMathOperator{\lcm}{lcm}
+\DeclareMathOperator{\var}{var}
+\DeclareMathOperator{\cov}{cov}
+\DeclareMathOperator{\Tor}{Tor}
+\DeclareMathOperator{\cl}{cl}
+\DeclareMathOperator{\sgn}{sgn}
+\DeclareMathOperator{\tr}{tr}
+\DeclareMathOperator{\supp}{supp}
+\DeclareMathOperator{\col}{col}
+\DeclareMathOperator{\proj}{proj}
+\DeclareMathOperator{\diag}{diag}
+\DeclareMathOperator{\logit}{logit}
+\DeclareMathOperator{\expit}{expit}
+\DeclareMathOperator{\argmin}{argmin}
+\DeclareMathOperator{\argmax}{argmax}
+
+% common arrows
+%\newarrow{Embeds}{C}{-}{-}{-}{>}
+%\newarrow{Onto}{-}{-}{-}{-}{>>}
+
+% text macros 
+\newcommand{\IFF}{\textit{if and only if }}
+\newcommand{\Hint}{\textit{Hint: }}
+\newcommand{\weakstar}{\ensuremath{\text{weak}^{*}}}
+
+% logic symbols 
+\newcommand{\suchthat}{\ensuremath \; \left| \right. \;}
+\newcommand{\AND}{\ensuremath \text{ \& }}
+\newcommand{\OR}{\ensuremath \text{ or }}
+\newcommand{\EQ}{\ensuremath \; \Longleftrightarrow \;}
+\newcommand{\walk}[2]{\ensuremath #1 \text{--} #2}
+\newcommand{\ob}[1]{\textbf{OB.}~#1}
+\newcommand{\Implies}{\ensuremath \Rightarrow}
+\newcommand{\ST}{\ensuremath \; \Bigl| \Bigr. \;}
+\newcommand{\nullset}{\ensuremath{\varnothing}}
+
+% delimiters 
+\newcommand{\norm}[1]{\left\| {#1} \right\|}
+\newcommand{\ord}[1]{\left| {#1} \right|}
+\newcommand{\set}[1]{\left\{ {#1} \right\}}
+\newcommand{\parenths}[1]{\ensuremath \left( {#1} \right)}
+\newcommand{\ceiling}[1]{\ensuremath{\left\lceil #1 \right\rceil}}
+\newcommand{\floor}[1]{\ensuremath{\left\lfloor {#1} \right\rfloor}}
+\newcommand{\restricted}[1]{\bigr|_{{#1}}}
+
+% differential operators 
+\newcommand{\D}[1]{\ensuremath \Delta{\left( #1 \right)}}
+\newcommand{\infint}{\int_{-\infty}^{\infty}}
+\newcommand{\abint}{\int_{a}^{b}}
+\newcommand{\del}[1]{\ensuremath{\frac{\partial}{\partial{#1}}}}
+
+\newcommand{\SUM}[3]{\ensuremath \sum_{#1 = #2}^{#3}}
+\newcommand{\dSUM}[3]{\ensuremath\displaystyle\sum_{#1 = #2}^{#3}}
+
+% vector space operators 
+\newcommand{\Det}[1]{\ensuremath{\begin{vmatrix}\displaystyle #1 \end{vmatrix}}}
+\newcommand{\ip}[1]{\ensuremath{\displaystyle \left\langle #1 \right\rangle}}
+
+% common symbols 
+\newcommand{\Q}{\ensuremath{\mathbb{Q}}}
+\newcommand{\Z}{\ensuremath{\mathbb{Z}}}
+\newcommand{\N}{\ensuremath \mathbb{N}}
+\newcommand{\R}{\ensuremath \mathbb{R}}
+\newcommand{\C}{\ensuremath{\mathbb{C}}}
+\newcommand{\eps}{\ensuremath{\varepsilon}}
+\newcommand{\BB}{\mathbb{B}} % for Borel sigma-algebra
+\newcommand{\DD}{\ensuremath{\mathbb{D}}} % for unit disk
+\newcommand{\I}{\mathbb{I}}
+\newcommand{\X}{\mathbf{X}}
+\newcommand{\Y}{\mathbf{Y}}
+
+% script math macros
+\newcommand{\A}{\ensuremath{\mathcal{A}}}
+\newcommand{\B}{\ensuremath{\mathcal{B}}}
+\renewcommand{\L}{\ensuremath{\mathcal{L}}}
+\newcommand{\s}{\ensuremath{\mathcal{S}}}
+\newcommand{\T}{\ensuremath{\mathcal{T}}}
+\newcommand{\M}{\mathcal{M}}
+\newcommand{\F}{\mathcal{F}}
+\newcommand{\E}{\mathcal{E}}
+\renewcommand{\P}{\mathcal{P}}
+\newcommand{\K}{\mathcal{K}}
+\newcommand{\U}{\mathcal{U}}
+
+% misc
+\newcommand{\iid}{\stackrel{iid}{\sim}}
+\newcommand{\given}[1]{ \left| \, {#1} \right.}
+\newcommand{\tensor}{\otimes}
+\newcommand{\orth}{\perp\!\!\!\perp}
+

@@ -1,0 +1,620 @@
+\documentclass[10pt,titlepage]{article}
+
+\usepackage{../mcgill}
+
+\newcommand{\Solution}{\paragraph{\textit{Solution.}}}
+\newcommand{\y}{\mathbf{y}}
+\newcommand{\one}{\mathbf{1}}
+\renewcommand{\I}{\mathbf{I}}
+
+% \renewcommand{\O}{\mathcal{O}}
+% \renewcommand{\Q}{\mathcal{Q}}
+% \renewcommand{\H}{\mathcal{H}}
+% \renewcommand{\N}{\mathcal{N}}
+% 
+% \usepackage{fancyhdr}
+% 
+% \lhead{CS281A}
+% \chead{Problem Set \#1}
+% \rhead{Steven Pollack -- 24112977}
+% \cfoot{\thepage}
+% 
+% \title{CS281A \\ Problem Set \#1}
+% \author{Steven Pollack \\ 24112977}
+% \date{}
+
+\begin{document}
+% 
+% \maketitle
+% \pagestyle{empty}
+% \newpage
+% \pagestyle{fancy}
+
+<<globalParameters,echo=FALSE,cache=FALSE>>=
+set.seed(1234)
+opts_chunk$set(comment="#",
+               tidy=FALSE,
+               warning=FALSE,
+               message=FALSE,
+               highlight=TRUE,
+               echo=TRUE,
+               cache=TRUE)
+@
+
+%%%%% knitr code to make sure things stay inside listings box:
+<<stayInside,echo=FALSE>>=
+  options(width=60)
+  listing <- function(x, options) {
+     paste("\\begin{lstlisting}[basicstyle=\\ttfamily,breaklines=true]\n", x,"\\end{lstlisting}\n", sep = "")
+  }
+  
+  knit_hooks$set(source=listing, output=listing)
+@
+
+\paragraph{\#1. -- Exercise 5.2} *Suppose that the means and standard deviations of $Y$ and $X$ are the same: $\bar{Y} = \bar{X}$ and $S_{Y} = S_{X}$. 
+
+\begin{enumerate}
+  \item[(a)] Show that under these circumstances,
+  \[
+    B_{Y|X} = B_{X|Y} = r_{XY}
+  \]
+  where $B_{Y|X}$ is the least-squares slope for the simple regression of $Y$
+  on $X$; $B_{X|Y}$ is the least-squares slope for the simple regression of
+  $X$ on $Y$; and $r_{XY}$ is the correlation between the two variables. Show
+  that the intercepts are also the same, $A_{Y|X} = A_{X|Y}$. 
+  
+  %%-------------------------------
+  \Solution
+  For the simple regression of $Y$ on $B$, $\hat{Y_i} = A + B X_i$, taking
+  \[
+    B = \dfrac{\sum_{i} (X_i - \bar{X})(Y_i - \bar{Y})}
+          {\sum_i (X_i - \bar{X})^2}
+      \equiv \dfrac{S_{XY}}{S_{X}^2}, \text{ and }
+    A = \bar{Y} - B \bar{X}
+  \]
+  where $S_X^2$ is the sample variance of $X$, gives us the coefficients that
+  minimize the least squares equation. Hence, if $S_X = S_Y$, then using the
+  symmetry of $S_{XY}$ (i.e. $S_{XY}=S_{YX}$),
+  \[
+    B_{Y|X} = \dfrac{S_{XY}}{S_{X}^2} = \dfrac{S_{XY}}{S_{X}S_{Y}}
+            = \dfrac{S_{YX}}{S_{Y}S_{X}} = B_{X|Y}
+  \]
+  And since we define $r_{XY}$ to be $S_{XY}/S_{X}S_{Y}$, it follows that
+  \[
+    B_{Y|X} = B_{X|Y} = r_{XY}
+  \]
+  Thus, if $S_X = S_Y$ \textit{and} $\bar{Y} = \bar{X}$, then
+  \[
+    A_{Y|X} = \bar{Y} - B_{Y|X} \bar{X} = \bar{X} - B_{X|Y} \bar{Y} = A_{X|Y}
+  \]
+  %%-------------------------------
+  
+  \item[(b)] Why, if $A_{Y|X} = A_{X|Y}$ and $B_{Y|X} = B_{X|Y}$, is the
+  least-squares line for the regression of $Y$ on $X$ different from the line
+  from the regression of $X$ on $Y$ (as long as $r^2 < 1$)?
+  
+  %%-------------------------------
+  \Solution
+  Denote the line for the regression of $Y$ on $X$ is by $f(x) = A_{Y|X} +
+  B_{Y|X} x$. If we try inverting this line, and solving for $x$ as a function
+  of $f(x)$, we get 
+  \[
+    h(f(x)) = (f(x) - A_{Y|X})/B_{Y|X} = B_{Y|X}^{-1}f(x) - \frac{A_{Y|X}}{B_{Y|X}}
+  \]
+  If we let $g(y) = A_{X|Y} + B_{X|Y} y$ denote the line for the regression of
+  $X$ on $Y$, then for $h(y) = g(y)$, we would need
+  \[
+    B_{Y|X}^{-1} = B_{X|Y}, \text{ and } A_{X|Y} = - \frac{A_{Y|X}}{B_{Y|X}}
+  \]
+  Since we're still assuming equal means and variances, the first condition
+  is equivalent to asking for $B_{X|Y}^2 = 1$, or $r^2 = 1$. However, we're
+  assuming that $r^2 < 1$, so this situation cannot be. Thus, we cannot have
+  equal regression lines.
+  %%-------------------------------
+  
+  \item[(c)] "Regression toward the mean" (the original sense of the term
+  "regression"): Imagine that $X$ is father's height and $Y$ is son's height
+  for a sample of father-son pairs. Suppose that $S_{Y} = S_{X}$, that
+  $\bar{Y} = \bar{X}$, and that the regression of sons' heights on fathers' 
+  heights is linear. Finally, suppose that $0 < r_{XY} < 1$ (i.e., fathers'
+  and sons' heights are positively correlated, but not perfectly so).
+  Show that the expected height of a son whose father is shorter than average
+  is also less than average, but to a smaller extent; likewise, the expected
+  height of a son whose father is taller than average is also greater than
+  average, but to a smaller extent. Does this result imply a contradiction
+  -- that the standard deviation of a son's height is infact less than that
+  of father's height?
+  
+  %%-------------------------------
+  \Solution
+  Recall that when we perform regression, we're actually make a statement about
+  the conditional mean of one variable given another. Precisely, $\hat{Y}$ is
+  supposed to estimate $E(Y | X)$. So, if we translate the phrase, ``the
+  expected height of a son whose father is shorter than average is also less
+  than average, but to a smaller extent'' into symbols, it will read:
+  \[
+    0 < \bar{Y} - E(Y_i | X_i < \bar{X}) < \bar{X} - X_i
+  \]
+  Hence, if we can prove $0 < \bar{Y} - \hat{Y}_i < \bar{X} - X_i$, when $X_i$
+  is less than average, we're done.
+  Using the results from part (a), and the assumption that $r_{XY} \in (0,1)$,
+  \begin{align*}
+    \bar{Y} - \hat{Y}_i &= \bar{Y} - (A + B X_i) \\
+      &= \bar{Y} - \parenths{\bar{Y} + r_{XY}(X_i - \bar{X})} \\
+      &= r_{XY}(\bar{X} - X_i) \\
+      &< \bar{X} - X_i
+    \intertext{and using $r > 0$:}
+    \bar{Y} - \hat{Y}_i &= r_{XY}(\bar{X} - X_i) > 0
+  \end{align*}
+  Hence,
+  \[
+    0 < \bar{Y} - \hat{Y}_i < X_i - \bar{X}
+  \]
+  Similarly, if $X_i - \bar{X} > 0$, 
+  \begin{align*}
+    \hat{Y}_i - \bar{Y} &=  \parenths{\bar{Y} + r_{XY}(X_i - \bar{X}) } 
+                        - \bar{Y} \\
+      &= r_{XY}(X_i - \bar{X}) \\
+      &< (X_i - \bar{X})
+    \intertext{and}
+    \hat{Y}_i - \bar{Y} &= r_{XY}(X_i - \bar{X}) > 0
+  \end{align*}
+  
+  Now, while this results shows that for all $i$, $(\hat{Y}_i - \bar{Y})^2 <
+  (X_i - \bar{X})^2$, this does \textit{not} imply that $(Y_i - \bar{Y})^2 < 
+  (X_i - \bar{X})^2$. The latter expression involves observed values, while
+  the former expression involves \textit{expected values}. Hence, while we may
+  say that the $\text{Reg}SS$ is less than the $(n-1) S_{X}^2$, we do not have
+  the license to say that $S_{Y}^{2} < S_{X}^2$. 
+  %%-------------------------------
+
+  \item[(d)] What is the expected height for a father whose son is shorter
+  than average? Of a father whose son is taller than average?
+  %%-------------------------------
+  \Solution If we reverse the regression -- regress fathers' height
+  on sons' height -- because we're assuming $S_X = S_Y$ and $\bar{X} = \bar{Y}
+  $, we arrive at the same conclusion as in part (c): the expected height of a 
+  father whose son is shorter (taller) than average is shorter (taller) than
+  average, but to a smaller extent. 
+  
+  %%-------------------------------
+  \item[(e)] Regression effects in research design: Imagine that educational
+  researchers wish to assess the efficacy of a new program to improve the
+  reading performance of children. To test the program, they recruit a group
+  of children who are reading substantially below grade level; after a year
+  in the program, the researchers observe that the children, on average, have
+  improved their reading performance. Why is this a weak research design?
+  How could it be improved?
+  %%-------------------------------
+  \Solution
+  As we saw in part (c), children of short men tend to get raised up to the
+  mean. Hence, if we consider $X_i$ the reading performance of a child at the
+  start of the program of $Y_i$ their performance a year later, then by what
+  we just proved, we should expect $Y_i$ to be closer to the mean than $X_i$. 
+  In particular, we expect $Y_i$ to be higher, on average, since the children
+  were chosen such that $X_i < \bar{X}$. 
+  
+  One way to improve this design is to sample from both the strong and weak
+  readers, and then review their performances a year later. If both groups
+  exhibit a significant difference, then we may be able to assess the efficacy
+  of the program.
+  %%-------------------------------
+\end{enumerate}
+
+\paragraph{\#2.} Write down the equations for $B_{Y|X}$ and $B_{X|Y}$ when $Y$
+and $X$ do not have the same mean and standard deviation. Intuition might
+suggest that $B_{Y|X} = 1/B_{X|Y}$. Is this true?
+
+%%-------------------------------
+\Solution For $S_X \neq S_Y$ and $\bar{X} \neq \bar{Y}$, we have
+\[
+  B_{Y|X} = \frac{S_{XY}}{S_{X}^2} \neq \frac{S_{XY}}{S_{Y}^2} = B_{X|Y}
+\]
+In order for $B_{Y|X} = B_{X|Y}^{-1}$, we require $S_{XY}^2 = S_{X}^2 S_{Y}^2$. That is, 
+\[
+  \parenths{\dfrac{S_{XY}}{S_{X} S_{Y}}}^2 = 1 \EQ r^2 = 1
+\]
+While this isn't impossible, it doesn't happen often. In practice, $B_{Y|X} =
+S_{Y}^2 B_{X|Y} / S_{X}^2$. 
+%%-------------------------------
+
+\paragraph{\#3. -- Exercise 5.3.} *Show that $A' = \bar{Y}$ minimizes the sum of squares
+\[
+  S(A') = \sum_{i=1}^{n} (Y_i - A')^2
+\]
+
+%%-------------------------------
+\Solution
+There are a few ways to do this, but the most straightfoward is with calculus.
+
+Consider $S(A')$ like any other real-valued function of one variable. We'll
+solve for where $S'(A') = 0$, and check to see if that is a (global) minimum.
+If it is, we've found our minimizer.
+
+\begin{align*}
+  \frac{d}{dA'} S(A') &= \frac{d}{dA'} \sum_{i=1}^{n} (Y_i - A')^2 \\
+                      &= -2 \sum_{i=1}^{n} (Y_i - A') \\
+                      &= -2n \, \bar{Y} + 2n A'
+\end{align*}
+Hence, $d S(x)/ dx \bigr|_{x=A'} = 0$ precisely when $A' = \bar{Y}$.
+
+Now, to see that this is a minimum, notice that $S''(A') = 2n > 0$. Hence, the
+second derivative is positive at the critical value, implying that 
+$A' = \bar{Y}$ is a global minimum. 
+%%-------------------------------
+
+\paragraph{\#4.} Show the statement given in the book (p. 84) that
+\[
+  \sum_{i}(Y_i - \hat{Y}_i)(\hat{Y}_i - \bar{Y}) = 0
+\]
+proving that $TSS = RSS + \text{Reg}SS$.
+
+%%-------------------------------
+\Solution
+Using the least-squares coefficients defined in problem \#1,
+\begin{align*}
+  \sum_i (Y_i - \hat{Y}_i)(\hat{Y}_i - \bar{Y}) &=
+    \sum_i \parenths{Y_i - \bar{Y} - \frac{S_{XY}}{S_{X}^2}(X_i - \bar{X})}
+      \parenths{\frac{S_{XY}}{S_X^2}(X_i - \bar{X})} \\
+    &= \sum_i \frac{S_{XY}}{S_{X}^2} (Y_i - \bar{Y})(X_i - \bar{X})
+      - \parenths{\frac{S_{XY}}{S_{X}^2}}^2 (X_i - \bar{X})^2 \\
+    &= \frac{S_{XY}}{S_{X}^2} \sum_i (Y_i - \bar{Y})(X_i - \bar{X})
+        - \parenths{\frac{S_{XY}}{S_{X}^2}}^2 \sum_i (X_i - \bar{X})^2 \\
+    &= \frac{S_{XY}}{S_{X}^2} S_{XY}
+        - \parenths{\frac{S_{XY}}{S_{X}^2}}^2 S_{X}^2 \\
+    &= 0
+\end{align*}
+%%-------------------------------
+
+\paragraph{\#5.} Suppose $y_1, \ldots, y_n$ are i.i.d. random variables with
+mean $\mu$ and variance $\sigma^2$. Let 
+$s^2 = \frac{1}{n-1} \sum_i (y_i - \bar{y})^2$, where 
+$\bar{y} = \frac{1}{n} \sum_{i} y_i$.
+
+\begin{enumerate}
+  \item[(a)] Show that $\sum_{i}(y_i - \bar{y})^2$ can be expressed as 
+  $ \y^{T} (\I_n - \frac{1}{n} \one_n \one_n^{T}) \y $ where $\I_n$ is the 
+  identity matrix of order $n$, and $\one_n$ is a vector of length $n$ 
+  consisting of all ones.
+  
+  %%-------------------------------
+  \Solution
+  Let's start with the vector algebra:
+  \begin{align*}
+    \frac{1}{n}\one_{n} \one_{n}^{T} \y &= \frac{1}{n} \one_{n} \ip{\one_n, \y} \\
+                                        &= \frac{1}{n} \one_{n} \sum_{i} y_i \\
+                                        &= \one_{n} \bar{y}
+    \intertext{Hence,}
+    (\I_n - \frac{1}{n}\one_{n} \one_{n}^{T}) \y &= \y - \one_{n} \bar{y} \\
+                        &= (y_1 - \bar{y}, y_2 - \bar{y}, \ldots, y_n - \bar{y})
+    \intertext{and thus}
+    \y^{T} (\I_n - \frac{1}{n}\one_{n} \one_{n}^{T}) \y
+                        &= \ip{\y, \y - \one_n \bar{y}} \\
+                        &= \sum_i y_i(y_i - \bar{y})
+  \end{align*}
+  Now, we're not quite done. Recall that
+  \[
+    \sum_i \bar{y}(y_i - \bar{y}) = \sum_{i} \bar{y} y_i - n \bar{y}^2 =
+    n \bar{y}^2 - n \bar{y}^2 = 0
+  \]
+  Hence, 
+  \begin{align*}
+    \sum_i y_i(y_i - \bar{y}) &= \sum_i (y_i - \bar{y} + \bar{y})(y_i - \bar{y}) \\
+        &= \sum_i (y_i - \bar{y})^2 + \sum_{i} \bar{y}(y_i - \bar{y}) \\
+        &= \sum_i (y_i - \bar{y})^2
+  \end{align*}
+  Which demonstrates that $\sum_i (y_i - \bar{y})^2 = \y^{T} (\I_n - \frac{1}{n}
+  \one_{n} \one_{n}^{T}) \y $. 
+  %%-------------------------------
+  \item[(b)] Use the matrix form of $s^2$ to show that $E(s^2) = \sigma^2$
+  (i.e. do not manipulate the sum directly, but use only the matrix definition).
+
+  %%-------------------------------
+  \Solution
+  Note that the result of part (a) indicates that $s^2$ can be written as a
+  quadratic form. Hence, we can use the identity
+  \[
+    E(\X^{T} A \X) = E(\X)^{T} A E(\X) + \tr(A \Sigma)
+  \]
+  where $A$ is some non-random matrix, and $\Sigma$ is $\X$'s covariance
+  matrix.\footnote{See the ``Expected value, covariance, and cross-covariance''
+  section of \href{https://en.wikipedia.org/wiki/Random_vector}{
+  https://en.wikipedia.org/wiki/Random\_vector} for a nice proof of this fact.}
+  
+  In our case, we'll take $\y$ to play the role of $\X$, $\mu \one_n$ to play
+  the role of $E(\y)$, and $\sigma^2 \I_n$ to play the role of the covariance
+  matrix. Hence, 
+  \begin{align*}
+    E\parenths{(n-1) s^2} &= E\parenths{\sum_i (y_i- \bar{y})^2 } \\
+      &= E\parenths{\y^{T}\parenths{\I_n - \frac{1}{n}\one_{n} \one_{n}^{T}} \y} \\
+      &= E(\y)^{T} \parenths{\I_n - \frac{1}{n}\one_{n} \one_{n}^{T}} E(\y)
+      + \tr\parenths{\parenths{\I_n - 
+          \frac{1}{n}\one_{n} \one_{n}^{T}} \sigma^2 \I_n} \\
+      &= \mu^2 \one_{n}^{T} \parenths{ \I_n - \frac{1}{n} \one_n \one_n^T }
+        \one_{n} + \sigma^2 \tr\parenths{ \parenths{\I_n - \frac{1}{n} \one_n^T
+          \one_{n}} \I_n }
+  \end{align*}
+  To proceed, we'll need to evaluate each term in the sum above:
+  \begin{align*}
+    \one_{n}^{T} \parenths{ \I_n - \frac{1}{n} \one_n \one_n^T } \one_{n}
+      &= \one_{n}^{T} \parenths{\one_{n} - \frac{1}{n} \one_n \one_n^T \one_{n}} \\
+      &= \parenths{\one_{n}^{T} \one_{n} - 
+          \frac{1}{n} \one_{n}^{T} \one_n \one_n^T \one_{n}} \\
+      &= \ip{\one_{n}, \one_{n}} - \frac{1}{n} \ip{\one_n, \one_n}^2 \\
+      &= n - \frac{n^2}{n} \\
+      &= 0
+    \intertext{and using the fact that $\frac{1}{n} \one_n^T \one_n$ is the
+    matrix whose entries are all $1/n$:}
+    \tr\parenths{ \parenths{\I_n - \frac{1}{n} \one_n^T \one_{n}} \I_n }
+      &= \tr\parenths{ \parenths{\I_n - \frac{1}{n} \one_n^T \one_{n}} } \\
+      &= \tr\begin{pmatrix} 1-\frac{1}{n} & -\frac{1}{n} & \cdots \\
+                             -\frac{1}{n} &1-\frac{1}{n} & \cdots \\
+                             \vdots       &              &  \ddots 
+            \end{pmatrix} \\
+      &= \sum_{i=1}^{n} 1- \frac{1}{n} \\
+      &= n-1
+  \end{align*}
+  Thus,
+  \[
+    E\parenths{(n-1)s^2} 
+      = \mu^2 \one_{n}^{T} \parenths{ \I_n - \frac{1}{n} \one_n \one_n^T } 
+        \one_{n} + \sigma^2 \tr\parenths{ \parenths{\I_n - \frac{1}{n} \one_n^T
+        \one_{n}} \I_n }
+      = \mu^2 \cdot 0 + \sigma^2 (n-1)
+  \]
+  which demonstrates that $E(s^2) = \sigma^2$. 
+  %%-------------------------------
+\end{enumerate}
+\paragraph{\#6.}
+\begin{enumerate}
+  \item[(a)] Exploratory Data Analysis (EDA): Create each of the following
+  plots using appropriate variables in the data. Do not include variables for 
+  which the plot is not meaningful or descriptive of the data.
+  
+  Comment on each of the plots: Does anything catch your attention? Are there 
+  any outliers or surprises? Give a reason for your answers.
+  \begin{itemize}
+    \item Histogram / Density Plot
+    \item Boxplot
+    \item Pairs plot with smoothing lines
+    \item Co-plot
+    \item Scatterplot with a smoothing line (lowess) (choose the pair of 
+    variables that you find most interesting or most want to look at more 
+    closely based on the pairs plot, and explain why you chose them in your 
+    comment).
+  \end{itemize}
+  
+  \item[(b)] Carry out an Ordinary Least Squares analysis relating the gas 
+  mileage to the other features. You may use R to do the analysis.
+  
+  \item[(c)] Create residual plots. Does anything catch your attention? Are 
+  there any outliers? Give a reason for your answers.
+
+\end{enumerate}
+
+\Solution
+\begin{enumerate}
+  <<prob6a, results='hide', echo=FALSE>>=
+    setwd(dir="~/Dropbox/Berkeley/STAT151A/")
+    library(GGally)
+    library(data.table)
+
+    col_names <- c("mpg", "cylinders", "displacement", "horsepower", "weight",
+                   "acceleration", "model_year", "origin", "car_name")
+
+    cars_dt <- data.table(read.table(file="Data/auto-mpg.data.txt",
+                                     header=FALSE,
+                                     col.names=col_names))
+
+    cars_dt[, cylinders := as.factor(cylinders)]
+    cars_dt[, model_year := as.factor(model_year)]
+    cars_dt[, origin := as.factor(origin)]
+  @
+  \item[(a)] See figures \ref{fig:prob6aHistOutput}, \ref{fig:prob6aBoxplotOutput},
+  \ref{fig:prob6aPairsPlot}, \ref{fig:prob6aCoplot}, and \ref{fig:prob6aScatterplot}
+  for the histograms, boxplots, pairs plot, coplots, and scatterplots (respectively). 
+  
+  For the histograms, note that all the continuous variables, with the exception
+  of \texttt{acceleration} seemed to exhibit right-skewed distributions.
+  Whereas, \texttt{acceleration}'s distribution is bell-shaped (either student's
+  $t$, or normally distributed). The majority of vehicles in this dataset have 4
+  cylinders, which is nearly double what the second most amount of cars has
+  (103 cars with 8 cylinders). Also, over 1/2 of the cars in this set came from
+  wherever $\texttt{origin} = 1$. 
+  
+  Interestingly, the boxplot of \texttt{mpg} indicates its values are not as
+  skewed as one may have previously believed from the density plot, alone.
+  However, \texttt{displacement}, \texttt{horsepower} and \texttt{weight} all
+  have medians which sit slightly south of where one would expect for 
+  ``un-skewed'' distributions.
+  
+  I chose to investigate the relationship between \texttt{mpg},
+  \texttt{displacement} (i.e. engine size) and \texttt{horsepower} because the
+  latter two variables have a large correlation (\Sexpr{cor(cars_dt$horsepower,
+  cars_dt$displacement)}), while also seeming to trend quite tightly with
+  \texttt{mpg} (correlation of \Sexpr{cor(cars_dt$mpg, cars_dt$displacement)}
+  between \texttt{mpg} and \texttt{displacement} and of \Sexpr{cor(cars_dt$mpg,
+  cars_dt$horsepower)} between \texttt{mpg} and \texttt{horsepower}). However,
+  as the plots indicate, conditioning on either one does not induce any sort of
+  independence between \texttt{mpg} and the other. On the other hand, there does
+  seem to be only a slight amount of dependence between \texttt{mpg} and
+  \texttt{acceleration} once you condition on \texttt{horsepower}. Also, if you
+  compare how the various cars' mpg vary, pound-for-pound, as a function of
+  origin, it's interesting to see that country 2 seems to do better with heavier
+  cars.
+  
+  Finally, to satisfy the high-school physicist in all of us, I decided to
+  checkout the relationship between acceleration and displacement. Initially, I
+  figured that since displacement is a rough measure of engine size, the larger
+  the value, the better acceleration a car would have. This turns out to be wildly
+  false, and the general trend is quite the opposite: smaller enginers seem to
+  have better acceleration.
+
+  <<prob6aHistograms, echo=FALSE, results='hide'>>=
+    base_layer <- ggplot(data=cars_dt)
+    
+    mpg_density_plot <- base_layer + geom_histogram(aes(x=mpg,
+                                                        y=..density..),
+                                                    binwidth=1)
+    mpg_density_plot <- mpg_density_plot + stat_density(aes(x=mpg),
+                                                        fill=NA,
+                                                        color='red')
+    mpg_density_plot <- mpg_density_plot + labs(x="MPG",
+                                                y=NULL,
+                                                title="Histogram of mpg")
+
+    displacement_density_plot <- base_layer + 
+                                  geom_histogram(aes(x=displacement,
+                                                     y=..density..),
+                                                 binwidth=60)
+    displacement_density_plot <- displacement_density_plot + 
+                                  stat_density(aes(x=displacement),
+                                              fill=NA,
+                                              color='red')
+    displacement_density_plot <- displacement_density_plot + 
+                                  labs(y=NULL,
+                                       x="displacement",
+                                       title="Histogram of displacement")
+
+    horsepower_density_plot <- base_layer + 
+                                  geom_histogram(aes(x=horsepower,
+                                                     y=..density..),
+                                                 binwidth=15)
+    horsepower_density_plot <- horsepower_density_plot + 
+                                  stat_density(aes(x=horsepower),
+                                              fill=NA,
+                                              color='red')
+    horsepower_density_plot <- horsepower_density_plot + 
+                                  labs(y=NULL,
+                                       x="horsepower",
+                                       title="Histogram of horsepower")
+
+    acceleration_density_plot <- base_layer + 
+                                  geom_histogram(aes(x=acceleration,
+                                                     y=..density..),
+                                                 binwidth=0.75)
+    acceleration_density_plot <- acceleration_density_plot + 
+                                  stat_density(aes(x=acceleration),
+                                              fill=NA,
+                                              color='red')
+    acceleration_density_plot <- acceleration_density_plot + 
+                                  labs(y=NULL,
+                                       x="acceleration",
+                                       title="Histogram of acceleration")
+    
+    weight_density_plot <- base_layer + 
+                                  geom_histogram(aes(x=weight,
+                                                     y=..density..),
+                                                 binwidth=250)
+    weight_density_plot <- weight_density_plot + 
+                                  stat_density(aes(x=weight),
+                                              fill=NA,
+                                              color='red')
+    weight_density_plot <- weight_density_plot + 
+                                  labs(y=NULL,
+                                       x="weight",
+                                       title="Histogram of weight")
+
+    model_year_histogram <- base_layer + 
+                                  geom_histogram(aes(x=model_year))
+
+    model_year_histogram <- model_year_histogram + 
+                                  labs(y=NULL,
+                                       x="model_year",
+                                       title="Histogram of model_year")
+    
+    cylinders_histogram <- base_layer + 
+                                  geom_histogram(aes(x=cylinders))
+
+    cylinders_histogram <- cylinders_histogram + 
+                                  labs(y=NULL,
+                                       x="cylinders",
+                                       title="Histogram of cylinders")
+    
+    origin_histogram <- base_layer + 
+                                  geom_histogram(aes(x=origin))
+
+    origin_histogram <- origin_histogram + 
+                                  labs(y=NULL,
+                                       x="origin",
+                                       title="Histogram of origin")
+  @ 
+  
+  <<prob6aHistOutput, dev='pdf', out.width='0.35\\textwidth', fig.align='center', fig.show='hold', fig.cap='Histograms for all variables except \\texttt{cars\\_name}', echo=FALSE, dependson="prob6aHistograms">>=
+    mpg_density_plot
+    cylinders_histogram
+    displacement_density_plot
+    horsepower_density_plot
+    weight_density_plot    
+    acceleration_density_plot
+    model_year_histogram
+    origin_histogram
+  @
+  
+  <<prob6aBoxplots,echo=FALSE,results='hide'>>=
+    mpg_boxplot <- ggplot(data=cars_dt, aes(x="mpg", y=mpg)) +
+                    geom_boxplot() +
+                    geom_point(alpha=0.5, shape=1) +
+                    labs(x=NULL,y="mpg",title=NULL)
+
+    displacement_boxplot <- ggplot(data=cars_dt, aes(x="displacement",
+                                                     y=displacement)) +
+                              geom_boxplot() +
+                              geom_point(alpha=0.5, shape=1) +
+                              labs(x=NULL,y="displacement",title=NULL)
+
+    horsepower_boxplot <- ggplot(data=cars_dt, aes(x="horsepower",
+                                                   y=horsepower)) +
+                            geom_boxplot() +
+                            geom_point(alpha=0.5, shape=1) +
+                            labs(x=NULL,y="horsepower",title=NULL)
+
+    weight_boxplot <- ggplot(data=cars_dt, aes(x="weight", y=weight)) +
+                        geom_boxplot() +
+                        geom_point(alpha=0.5, shape=1) +
+                        labs(x=NULL,y="weight",title=NULL)
+
+    acceleration_boxplot <- ggplot(data=cars_dt, aes(x="acceleration",
+                                                     y=acceleration)) +
+                              geom_boxplot() +
+                              geom_point(alpha=0.5, shape=1) +
+                              labs(x=NULL,y="acceleration",title=NULL)
+  @
+  
+  <<prob6aBoxplotOutput, dev='pdf', out.width='0.35\\textwidth', fig.align='center', fig.show='hold', fig.cap='Boxplots for all continuous variables in dataset.', echo=FALSE, dependson="prob6aBoxplots">>=
+    mpg_boxplot
+    displacement_boxplot
+    horsepower_boxplot
+    weight_boxplot
+    acceleration_boxplot
+  @
+  
+  <<prob6aPairsPlot, echo=FALSE, dev='pdf', out.width="0.95\\textwidth", fig.cap="Pairs plot with smoothing.">>=
+    pairs(cars_dt[,  !"car_name", with=FALSE], panel = panel.smooth)
+  @
+  
+  <<prob6aCoplot, dev='pdf', out.width="0.49\\textwidth", fig.align='center', fig.cap="Coplots examining various conditional dependences between \\texttt{mpg} and other features.", fig.show='hold', echo=FALSE>>=
+    coplot1 <- cars_dt[, coplot(mpg ~ displacement | horsepower,
+                   panel=function(x,y,...) panel.smooth(x,y,span=0.8,...)
+                   )]
+    coplot2 <- cars_dt[, coplot(mpg ~ horsepower | displacement,
+                   panel=function(x,y,...) panel.smooth(x,y,span=0.8,...)
+                   )] # comment on this
+    coplot3 <- cars_dt[, coplot(mpg ~ acceleration | horsepower,
+                   panel=function(x,y,...) panel.smooth(x,y,span=0.9,...)
+                   )]
+    coplot4 <- cars_dt[, coplot(mpg ~ origin | weight,
+                   panel= panel.smooth
+                   )]
+  @
+  
+  <<prob6aScatterplot, dev='pdf', out.width="0.85\\textwidth", fig.align='center', fig.cap="Scatterplot of \\texttt{acceleration} against \\texttt{displacement}. Number of cylinders and car origin are keyed in figured.", fig.show='hold', echo=FALSE>>=
+    ggplot(data=cars_dt, aes(y=acceleration, x=displacement)) +
+    geom_point(aes(shape=origin,color=cylinders),size=2.5, alpha=0.5) +
+    stat_smooth(method="loess", se=FALSE) +
+    labs(title=NULL) +
+    theme(legend.position="bottom")
+  @
+\end{enumerate}
+
+\end{document}

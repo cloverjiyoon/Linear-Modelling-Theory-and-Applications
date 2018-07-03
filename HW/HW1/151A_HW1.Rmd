@@ -1,0 +1,282 @@
+---
+title: "151AHW1"
+author: "Jiyoon Clover Jeong"
+date: "9/5/2017"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(dplyr)
+library(grid)
+library(gridExtra)
+library(dmm, warn.conflicts = F)
+
+```
+
+
+# Question 4
+
+
+```{r}
+auto <- read.table("/Users/cloverjiyoon/2017Fall/Stat 151A/HW/HW1/auto-mpg.data.txt")
+
+colnames(auto) <- c("mpg","cylinders","displacement",
+                    "horsepower","weight","acceleration","modelyear", "origin","carname")
+
+auto$horsepower <- as.numeric(levels(auto$horsepower))[auto$horsepower]
+
+auto$cylinders <- factor(auto$cylinders)
+auto <- na.omit(auto)
+
+head(auto)
+
+```
+
+
+
+## Part (a) - EDA
+### Scatterplot
+
+```{r}
+
+ ggplot(data=auto, aes(x=acceleration, y=mpg)) +
+    geom_point(aes(color=cylinders)) + theme(legend.position="bottom")
+
+
+```
+
+This graph shows that the acceleration variable and mpg variable are roughly proportional to each other. Also, the number of cylinders are high when mpg and acceleration are small and low when acceleration and mpg are high.
+
+
+
+```{r}
+
+ ggplot(data=auto, aes(x=displacement, y=acceleration)) +
+    geom_point(aes(color=cylinders)) + theme(legend.position="bottom")
+
+```
+
+We can see that acceleration and displacement are inversely proportional to each other. Also, cylinder of car increases as displacement increases.
+
+```{r}
+  ggplot(data=auto, aes(x=weight, y=mpg, na.rm = T)) +
+    geom_point(aes(color=cylinders)) + theme(legend.position="bottom")
+```
+
+Mpg and weight are inversely proportional to each other. Also, cylinders of cars increase as the weight of car increases
+
+
+
+### Boxplots
+
+```{r}
+
+ggplot(auto, aes(x=factor(cylinders), y=mpg)) + geom_boxplot() +
+  geom_point(shape=1, alpha = 0.4) + labs(x="cylinders", y="mpg")
+
+```
+
+The cars which have 4 cylinders more likely to have higher mpg than other cars which have 3,5,6,and 8 cylinders.
+
+
+```{r}
+
+ggplot(auto, aes(x=factor(cylinders), y=acceleration)) + geom_boxplot()+
+  geom_point(shape=1, alpha = 0.4) + labs(x="cylinders", y="acceleration")
+
+
+```
+
+The cars which have 5 cylinders more likely to have higher acceleration than other cars which have 3,4,6,and 8 cylinders. Interestingly, acceleration doesn't always increases as the number of cylinders in car increases, but it decreases when the number of cylinders in car exceeds 5. 
+
+
+### Pairs plot with smoothing lines
+
+```{r}
+
+    pairs(auto[,c(1:8),], panel = panel.smooth) 
+
+#ommit car_name variable since they don't have valuable information
+
+
+
+```
+
+We can see that mpg is proportional to acceleration and model year but inversely proportional to displacement, horsepower, and weight from the first row. Origin is weekly proportional to mpg also. Also, the number of cylinders is proportional to displacement, horsepower, and weight but inversely proportional to acceleration, model year, and origin. The smoothing lines in graph let us to see general trends and relationships between two variables.
+
+
+
+
+### Co-plot
+
+```{r}
+
+
+
+coplot(mpg ~ displacement | cylinders, data = auto, cex = 0.5, columns = 5)
+```
+
+As the number of cylinders increases, mpg decreases but displacement increases.
+
+```{r}
+
+coplot(mpg ~ horsepower | modelyear, data = auto, cex = 0.5, xlab = "horsepower", column = 6) 
+
+
+```
+
+As modelyear increases, mpg increases and horsepower decreases. 
+
+### Density estimators plot (Histogram)
+
+```{r}
+
+ggplot(data=auto, aes(x= acceleration)) + geom_histogram(binwidth = 1)+
+  labs(x="acceleration", title="Histogram of acceleration")
+
+```
+
+The histrogram(density plot) of acceleration variable is similar to bell shape as normal distribution. The most frequent acceleration of the cars in the given dataset is approximately 15. 
+
+
+
+```{r}
+    
+ggplot(data=auto, aes(x= mpg)) + geom_histogram(binwidth = 1) +
+  labs(x="mpg", title="Histogram of mpg")
+
+```
+
+Most of the car's mpg is between 13 to 25. The histogram(density plot) of mpg variable is right-skewed.
+
+## Part(b)
+
+```{r}
+
+fac.cyl <- as.factor(auto$cylinders)
+cyl.mat <- sapply(levels(fac.cyl), function(x) as.integer(x == auto$cylinders))
+
+cyl.mat <- cyl.mat[,-1]
+
+fac.modelyear <- as.factor(auto$modelyear)
+year.mat <- sapply(levels(fac.modelyear), function(x) as.integer(x == auto$modelyear))
+
+year.mat <- year.mat[,-1]
+
+fac.origin <- as.factor(auto$origin)
+origin.mat <- sapply(levels(fac.origin), function(x) as.integer(x == auto$origin))
+
+origin.mat <- origin.mat[,-1]
+
+
+X <- cbind(rep(1,392), cyl.mat, auto[3:6], year.mat, origin.mat)
+colnames(X)[1] <- c("intercept")
+
+head(X,3)
+
+
+y = as.matrix(auto$mpg)
+
+X <- as.matrix(X)
+betahat <- solve((t(X) %*% X)) %*% t(X) %*% as.matrix(auto$mpg) 
+
+
+ols <- function(X, y, betahat){
+  
+  X <- as.matrix(X)
+
+  #inverse for solve
+  #solve(A, b)	Returns vector x in the equation b = Ax (i.e., A-1b)
+  
+  SSres <-sum((y - (X %*% betahat))^2)    # (X %*% betahat) is y^hat
+  
+  SSreg <- sum(((X %*% betahat) - mean(y))^2)
+  
+  SStotal <- sum((y-mean(y))^2)
+  
+  Rsq <- SSreg/SStotal
+  
+  output <- list("coefficients" = betahat, "SSres" = SSres, "SSreg" = SSreg,
+                 "Rsq" = Rsq, "SStotal" = SStotal)
+  return(output)
+  
+}
+
+
+
+
+list <- ols(X, y, betahat)
+
+auto$cylinders <- as.factor(auto$cylinders)
+auto$origin <- as.factor(auto$origin)
+auto$modelyear <- as.factor(auto$modelyear)
+
+fit2 <- lm(mpg~ . -carname, data = auto)
+summary(fit2)
+
+
+cat("The coefficient estimates (betahat) is ")
+list$coefficient
+
+cat("residual sum of squares is")
+list$SSres
+
+cat("SSreg is")
+list$SSreg
+
+
+cat("SStotal is")
+list$SStotal
+
+cat("R^2 is")
+list$Rsq
+
+```
+
+
+## Part (c)
+
+```{r}
+
+
+fitted <- as.matrix(X) %*% betahat
+head(fitted)
+
+residuals <- y - fitted
+head(residuals)
+
+data <- as.data.frame(cbind(fitted, residuals))
+head(data)
+
+ggplot(data, aes(y = residuals, x= fitted)) +
+  geom_point(size = 0.7) +  geom_smooth(method='lm', formula=y~x)
+  
+  
+
+
+
+
+
+```
+
+
+since R^2 is 0.8743834, it is close to 1. Since R^2 is close to 1, it means that  the regresssion model that I chose is more accurate  than the small model. 
+
+In residual versus pitted plot from regression, there are no obvious outliers. However, we can see that points in the residuals versus fitted plot have slight quadratic/linear patterns.
+
+
+
+## Part (d)   What can you conclude from your overall analysis?
+
+As I stated in part(c), the residuals exhibit slight quadratic/linear shape, and this possibly means that the there is a better model than linear model for the relationship between reponse variables and explanatory variables. This fact might also suggests that transformations of the variables and/or interaction terms may be a more appropriate fit.
+
+In addition to the previous statement, another trend of residuals is that they are vertically more spread out as fitted value increases. This might suggest that the model which fits better than linear model(true model) reveals more variability when fitted value is larger.
+ 
+After I did some research about residuals versus fitted plot, I found that the residuals from this plot are heteroscedastically distributed. In another words, the $\epsilon$ in y = $\beta_0$ + $\beta_1x_1$ + $\cdots$ + $\beta_px_p$ + $\epsilon$ will have variance depending on the $x_i$, rather than having some constant variance $\sigma^2$.
+
+
+

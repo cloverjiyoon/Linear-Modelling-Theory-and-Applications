@@ -1,0 +1,484 @@
+\documentclass[10pt,titlepage]{article}
+
+\usepackage{../mcgill}
+
+\newcommand{\Solution}{\paragraph{\textit{Solution.}}}
+\newcommand{\y}{\mathbf{y}}
+\newcommand{\x}{\mathbf{x}}
+\renewcommand{\b}{\mathbf{b}}
+\newcommand{\one}{\mathbf{1}}
+\newcommand{\zero}{\mathbf{0}}
+\renewcommand{\I}{\mathbf{I}}
+\renewcommand{\N}{\mathcal{N}}
+
+% \renewcommand{\O}{\mathcal{O}}
+% \renewcommand{\Q}{\mathcal{Q}}
+% \renewcommand{\H}{\mathcal{H}}
+
+
+\begin{document}
+<<globalParameters,echo=FALSE,cache=FALSE>>=
+set.seed(1234)
+opts_chunk$set(comment="#",
+               tidy=FALSE,
+               warning=FALSE,
+               message=FALSE,
+               highlight=TRUE,
+               echo=FALSE,
+               cache=TRUE,
+               fig.align='center',
+               fig.pos="ht",
+               dev='pdf',
+               fig.show='hold',
+               fig.keep='all',
+               out.width="0.49\\textwidth")
+@
+
+%%%%% knitr code to make sure things stay inside listings box:
+<<stayInside,echo=FALSE>>=
+  options(width=60)
+  listing <- function(x, options) {
+     paste("\\begin{lstlisting}[basicstyle=\\ttfamily,breaklines=true]\n",
+           x,"\\end{lstlisting}\n", sep = "")
+  }
+  
+  knit_hooks$set(source=listing, output=listing)
+@
+<<loadLibraries, cache=FALSE, results='hide'>>=
+library(ggplot2)
+library(reshape2)
+library(xtable)
+@
+\paragraph{\#1. -- Exercise 12.2} Nonconstant variance and specification error:
+Generate 100 observations accoridng to the following model: 
+\[
+Y = 10 + (1 \times X) + (1 \times D) + (2 \times X \times D) + \epsilon
+\]
+where $\epsilon \sim N(0,10^2)$; the values of $X$ are $1,2,\ldots,50, 1,2,
+\ldots, 50$; the first 50 values of $D$ are 0; and the last 50 values of $D$ are
+1. Then regress $Y$ on $X$ alone (i.e., omitting $D$ and $XD$), $Y=A + BX + E$.
+Plot the residuals, $E$ from this regression against the fitted values $\hat{Y}$.
+Is the variance of the residuals constant? How do you account for the pattern in
+the plot?
+
+<<q1>>=
+X <- rep.int(1:50, 2)
+D <- c(rep.int(0,50), rep.int(1,50))
+eps <- rnorm(n=100, mean=0, sd=10)
+Y <- 10 + X + D + 2 * X * D + eps
+
+lmObj <- lm(Y ~ X)
+lmObj2 <- lm(Y[1:50] ~ X[1:50])
+lmObj3 <- lm(Y[51:100] ~ X[51:100])
+@
+\Solution
+The plot of $E$ against $\hat{Y}$ is in figure \ref{fig:q1plot}. There are two
+``streams'' of residuals, and their distance spreads as we move from left to
+right. This indicates that the variance of the residuals is not constant.
+The pattern in the plot comes from the fact that $D$ is playing the role of a
+switch and that (conditional on $D$) $Y$ is one of two different lines. See 
+figure \ref{fig:q1plots2}.
+<<q1plot, dependson=c("q1"), fig.cap="Residuals versus Fitted Values plot for exercise 12.2.">>=
+ggplot(data=data.frame(D=D, Yhat=lmObj$fitted.values, E=lmObj$residuals)) +
+  geom_point(aes(y=E, x=Yhat, color=as.factor(D)), shape=1) +
+  labs(x=expression(hat(Y)), y=expression(E), title=NULL) +
+  scale_color_discrete("D") +
+  theme_bw()
+@
+<<q1plots2, dependson=c("q1"), fig.cap="In the left plot: $Y$ versus $X$ with separate linear regressions run for the cases when $D=0,1$. In the right plot: the residuals of the colored least-squares fits in the left plot. Note that these plots do not indicate anything abnormal with the variance of the residuals.">>=
+df1 <- rbind(data.frame(D=0, Yhat=lmObj2$fitted.values, E=lmObj2$residuals),
+             data.frame(D=1, Yhat=lmObj3$fitted.values, E=lmObj3$residuals))
+
+ggplot(data=data.frame(D=D, X=X, Y=Y), aes(x=X, y=Y)) +
+  geom_point(aes(color=as.factor(D)), shape=1) +
+  stat_smooth(method="lm", se=FALSE, color='black') + 
+  stat_smooth(aes(color=as.factor(D)), method="lm", se=FALSE) +
+  scale_color_discrete("D") +
+  labs(x=expression(X), y=expression(Y),
+       title="Y against X with coloring conditional on D.") +
+  theme_bw()
+
+ggplot(data=df1, aes(color=as.factor(D), x=Yhat, y=E)) +
+  geom_point(shape=1) +
+  labs(x=expression(hat(Y)), y=expression(E),
+       title="Residuals versus Fitted Values for conditional linear regression.") +
+  scale_color_discrete("D") +
+  theme_bw()
+@
+\paragraph{\#2. -- Exercise 12.6} Experimenting with component-plus-residual 
+plots; Generate random samples of 100 obserations according to each of the
+following schemes. In each case, construct the component-plus-residual plots for
+$X_1$ and $X_2$. do these plots accurately capture the partial replationships
+between $Y$ and each of $X_1$ and $X_2$? Whenever they appear, $\epsilon$ and
+$\delta$ are $N(0,1)$ and independent of each other and of the other variables.
+
+\begin{enumerate}
+  \item[(a)] Independent $X$s and a linear regression: $X_1$ and $X_2$
+  independent and uniformly distributed on the interval $[0,1]$;
+  $Y= X_1 + X_2 + 0.1\epsilon$.
+  \Solution 
+  The CPR Plots are in figure \ref{fig:q2a}. In this situation, the plots
+  properly indicate that once you put the components back into the residuals, 
+  the left-over variation is linear in the component.
+  <<q2>>=
+  buildCPRPlots <- function(lmObj) {
+    data <- lmObj$model[,-1]
+    coefs <- coefficients(lmObj)[-1]
+    resids <- residuals(lmObj)
+    plots <- lapply(seq.int(ncol(data)), function(j) {
+      X <- data[, j]
+      Y <- resids + coefs[j] * X
+      df <- data.frame(Y=Y, X=X)
+      plot <- ggplot(data=df, aes(x=X, y=Y)) +
+        geom_point(shape=1) +
+        stat_smooth(method="loess", se=FALSE, lty=2) +
+        stat_smooth(method="lm", se=FALSE) +
+        theme_bw() +
+        labs(y=paste0(names(coefs)[j], "'s Component + Residual"),
+             x=names(coefs)[j],
+             title="Component-plus-residual plot")
+      return(plot)
+    })
+
+    lapply(plots, function(plot) show(plot))
+  }
+  @
+  <<q2a, dependson=c("q2"), out.width="0.49\\textwidth", fig.cap="Component-plus-residual plots for exercise 12.6.a.">>=
+  X1 <- runif(n=100, min=0, max=1)
+  X2 <- runif(n=100, min=0, max=1)
+  Y <- X1 + X2 + 0.1*rnorm(n=100)
+  lmObj <- lm(Y ~ X1 + X2)
+  tmp <- buildCPRPlots(lmObj)
+  @
+  \item[(b)] Linearly related $X$s and a linear regression: $X_1$ uniformly
+  distributed on the interval $[0,1]$; $X_2 = X_1 + 0.1\delta$; 
+  $Y= X_1 + X_2 + 0.1\epsilon$. 
+  \Solution
+  See the figures in (\ref{fig:q2b}). Both trend lines are very nearly 
+  equal to $y=x$ and so both indicate that we should be putting each component
+  back into the model, untransformed.
+    <<q2b, dependson=c("q2"), out.width="0.49\\textwidth", fig.cap="Component-plus-residual plots for exercise 12.6.b.">>=
+  X1 <- runif(n=100, min=0, max=1)
+  X2 <- X1 + 0.1*rnorm(n=100)
+  Y <- X1 + X2 + 0.1*rnorm(n=100)
+  lmObj <- lm(Y ~ X1 + X2)
+  tmp <- buildCPRPlots(lmObj)
+  @
+  \item[(c)] Independent $X$s and a nonlinear regression on one $X$: $X_1$ and
+  $X_2$ independent and uniformly distributed on the interval $[0,1]$; 
+  $Y=2(X_1 - 0.5)^2 + X_2 + 0.1\epsilon$.
+  \Solution
+  The CPR Plot for $X_1$ in figure \ref{fig:q2c} properly reflects the quadratic
+  nature of $X_1$ in the formula for $Y$. However, the CPR Plot for $X_2$ is a 
+  bit confusing: at first blush the LOESS fit hints that maybe a monotone
+  transformation of $X_2$ should be a part of the model (perhaps $X_2^3$). 
+  However, the least-squares fit is nearly $y=x$, which would indicate that
+  we may be fine just putting $X_2$ (untransformed) back into the model.
+  <<q2c, dependson=c("q2"),  out.width="0.49\\textwidth", fig.cap="Component-plus-residual plots for exercise 12.6.c.">>=
+  X1 <- runif(n=100, min=0, max=1)
+  X2 <- runif(n=100, min=0, max=1)
+  Y <- 2*(X1 - 0.5)^2 + X2 + 0.1*rnorm(n=100)
+  lmObj <- lm(Y ~ X1 + X2)
+  tmp <- buildCPRPlots(lmObj)
+  @
+  \item[(d)] Linearly related $X$s and a nonlinear regression on one $X$: $X_1$
+  uniformly distributed on $[0,1]$; $X_2 = X_1 + 0.1\delta$; 
+  $Y = 2(X_1 - 0.5)^2 + x_2 + 0.1\epsilon$. 
+  (Note the ``leakage'' here from $X_1$ to $X_2$.)
+  \Solution
+  Here is where things get interesting. The left CPR Plot in figure 
+  \ref{fig:q2d} properly captures the quadratic role of $X_1$ in $Y$, 
+  \textit{and} the LOESS fit in the right CPR Plot heavily suggests a
+  transformation of $X_2$ (not necessarily monotone).
+  <<q2d, dependson=c("q2"),  out.width="0.49\\textwidth", fig.cap="Component-plus-residual plots for exercise 12.6.d.">>=
+  X1 <- runif(n=100, min=0, max=1)
+  X2 <- X1 + 0.1*rnorm(n=100)
+  Y <- 2*(X1 - 0.5)^2 + X2 + 0.1*rnorm(n=100)
+  lmObj <- lm(Y ~ X1 + X2)
+  tmp <- buildCPRPlots(lmObj)
+  @
+  \item[(e)] Nonlinearly related $X$s and a linear regression: $X_1$ uniformly
+  distributed on the interval $[0,1]$; $X_2 = \ord{X_1-0.5}$; 
+  $Y=X_1 + X_2 + 0.02\epsilon$.
+  \Solution
+  Like in parts a and b, the plots in figure \ref{fig:q2e} don't reveal much
+  beyond the obvious: $Y$ has a linear relationship with both $X_1$ and $X_2$,
+  inspite of a non-linear relationship between $X_1$ and $X_2$. 
+  <<q2e, dependson=c("q2"), out.width="0.49\\textwidth", fig.cap="Component-plus-residual plots for exercise 12.6.e.">>=
+  X1 <- runif(n=100, min=0, max=1)
+  X2 <- abs(X1 - 0.5)
+  Y <- X1 + X2 + 0.02*rnorm(n=100)
+  lmObj <- lm(Y ~ X1 + X2)
+  tmp <- buildCPRPlots(lmObj)
+  @
+  \item[(f)] Nonlinearly related $X$s and a linear regression on one $X$; $X_1$
+  uniformly distributed on the interval $[0,1]$; $X_2 = \ord{X_1 - 0.5}$; 
+  $Y= 2(X_1 - 0.5)^2 + X_2 + 0.02\epsilon$. (Note how strong a nonlinear 
+  relationship between the $X$s and how small an error variance in the
+  regression are required for the effects in this example to be noticeable.)
+  <<q2f, dependson=c("q2"), fig.cap="Component-plus-residual plots for exercise 12.6.f.">>=
+  X1 <- runif(n=100, min=0, max=1)
+  X2 <- abs(X1 - 0.5)
+  Y <- 2*(X1 - 0.5)^2 + X2 + 0.02*rnorm(n=100)
+  lmObj <- lm(Y ~ X1 + X2)
+  tmp <- buildCPRPlots(lmObj)
+  @
+  \Solution
+  Finally, the plots in figure \ref{fig:q2f} are the most interesting yet.
+  The "symmetry" about $X_1 = 0.5$ in the left CPR Plot indicates that the
+  non-linearity we're dealing with may need more experimentation that just
+  hitting $X_1$ with a monotone transformation. Similarly, the right CPR Plot
+  would have us believe that $X_2$ should be squared up, should we choose to
+  replace it back in the model.
+\end{enumerate}
+\paragraph{\#3 -- Ants}
+\Solution
+First, it should be noted that the data contained a row with an \texttt{NA}.
+Consequently, that row was excluded for the entirety of the analysis.
+Furthermore, that 'Distance' only took on 5 unique values suggested that we 
+consider the variable as categorical, rather than continuous. Hence, the 
+proceeding analysis was begun with 3 categorical predictors ('Colony',
+'Distance', and 'Size.class') and 1 continuous predictor ('Headwidth').
+
+The simple EDA performed in figures 9 and 10 indicate that worker $Headwidth$
+and $Size.class$ distribution do vary somewhat between colonies. In particular,
+Colony 4 and Colony 1 have a disproportionate amount of workers of with
+$Size.class = 40-43$. Colony 6 seems to have most of its workers in $Size.class$
+greater than 35. Worker $Mass$ is the least variable (across colonies). 
+
+In fitting the model $Mass \sim Colony + Distance + Size.class + Headwidth$,
+a few unexpected results occured. Namely, the the coefficients on the dummy
+variables for the 'Class.size' were negative (and very insignificant). Given
+that most biological models would imply a direct relationship between an 
+animal's size and its mass, these coefficients put the validity of this model
+in to question. Since it doesn't make sense to transform categorical indicators
+there were only two ways to fix this "problem":
+\begin{enumerate}
+  \item Drop 'Class.size' (since its coefficients had incredibly high 
+  $p$-values), or
+  \item Consider respecifying 'Headwidth' (the only numeric variable in the
+  model).
+\end{enumerate}
+Given there's a very good reason to keep 'Class.size' in the model, option \#1
+is not reasonable. For option \#2, residual, AV, and CPR plots were used to
+investigate if any unexplained curvature is present (see figure
+\ref{fig:q3RegAnalysisPlots}) from 'Headwidth'. Surprisingly, adding a 
+quadratic transformation of 'Headwidth' removed any structure between the
+regression model's residuals and 'Headwidth'. Furthermore, the \textit{adjusted}
+$R^2$ value for the model that adds $Headwidth^2$ to the previous "full model"
+takes on a 0.03\% increase.
+<<loadData>>=
+setwd(dir="~/Dropbox/Berkeley/STAT151A/")
+data <- read.table(file="HW_solutions/HW3/hw3_ants.txt", header=TRUE,
+                      na.strings=c("NA", "\x80"),
+                      colClasses=c(rep.int("factor",2),
+                                   rep.int("numeric",3),
+                                   "factor"))
+@
+
+<<q3, dependson=c("loadData")>>=
+ants.df <- data[apply(data, 1, function(row) all(!is.na(row))), ]
+ants.df <- ants.df[, -5]
+@
+
+<<q3ColonyPlots, dependson=c("q3"), fig.cap="Basic, colony-level, EDA of variables in \\texttt{ants} dataset.">>=
+basePlot <- ggplot(data=ants.df)
+
+basePlot +
+  geom_histogram(aes(x=Distance, y=..count.., fill=Colony),
+                 position="dodge") +
+  labs(y=NULL, title="Histogram of Distance for the 6 Colonies") +
+  theme_bw()
+
+basePlot +
+  geom_boxplot(aes(y=Mass, x=Colony)) +
+  geom_point(aes(y=Mass, x=Colony, color=Colony), shape=1) +
+  theme_bw() +
+  labs(x=NULL, title="Distribution of worker mass for the 6 Colonies")
+
+basePlot +
+  geom_boxplot(aes(y=Headwidth, x=Colony)) +
+  geom_point(aes(y=Headwidth, x=Colony, color=Colony), shape=1,
+             position=position_jitter(width=0.05)) +
+  theme_bw() +
+  labs(x=NULL, title="Distribution of worker headwidth for the 6 Colonies")
+
+basePlot +
+  geom_histogram(aes(x=Size.class, y=..count.., fill=Colony),
+                 position="dodge") +
+  labs(y=NULL,
+       title="Histograms of size classes of the workers in the 6 Colonies") +
+  theme_bw()
+@
+
+<<q3ColonyPairsPlots, dependson=c("q3"), fig.cap="Colony-level pairs plots.">>=
+tmp <- sapply(levels(ants.df$Colony), function(lvl) {
+  title <- paste0("Pairs plot for Colony ", lvl)
+  pairs(subset(ants.df, Colony == lvl, select=-Colony),
+        panel=panel.smooth, main=title)
+})
+@
+
+<<q3RegAnalysis, dependson=c("q3"), cache=FALSE>>=
+fullModel <- lm(Mass ~ 0 + ., data=ants.df)
+
+partialModel <- lm(Mass ~ 0 + Colony + Size.class + Distance, data=ants.df)
+
+# check that adding headwidth is smart
+partialModel2 <- lm(Headwidth ~ 0 + Colony + Size.class + Distance,
+                    data=ants.df)
+
+partialModel3 <- lm(Headwidth + I(Headwidth^2) ~ 0 + .,
+                    data=ants.df[, -3])
+
+fullModel2 <- lm(Mass ~ 0 + . + I(Headwidth^2), data=ants.df)
+@
+<<q3RegAnalysisTab1, dependson=c("q3RegAnalysis"), results='asis'>>=
+fullModelAdjR2 <- round(x=summary(fullModel)$adj.r.squared,
+                        digits=4)
+cap <- paste0("\\texttt{summary} for model including all variables in
+             ants data. Adjusted $R^2$ for this model is ", fullModelAdjR2)
+print(xtable(fullModel, caption=cap))
+
+parModelAdjR2 <- round(summary(partialModel)$adj.r.squared, 4)
+cap <- paste0("\\texttt{summary} for model including  only including
+             'Colony', 'Distance', and 'Size.class'. Adjusted $R^2$ for this
+             model is ", parModelAdjR2, ".Note that all variables are
+             signficant, here.")
+print(xtable(partialModel, caption=cap)) # all variables significant with
+
+fullModel2AdjR2 <- round(summary(fullModel2)$adj.r.squared, 4)
+cap <- paste0("\\texttt{summary} for model including all variables in ",
+             "ants data as well as 'Headwidth$^2$'. Adjusted $R^2$ for this ",
+             "model is ", fullModel2AdjR2, ", which is ",
+             round(100*(fullModel2AdjR2 - fullModelAdjR2)/fullModelAdjR2,3),
+             "\\% more than the previous full model. Note that, we're in a ",
+             "position where most of our variables are significant and the ",
+             "relationships between 'Mass' and 'Size.class' make sense. (I.e.,",
+             " there's a positive, trend between the latter and the former.)")
+
+@
+
+The summary of the \texttt{lm} call is below. See tables 1 and 2 for the 
+print-outs of $Mass ~ Size.class + Distance + Headwidth + Colony$ and 
+$Mass ~ Size.class + Distance + Colony$, respectively. 
+
+<<q3RegAnalysisTab2, dependson=c("q3RegAnalysis", "q3RegAnalysisTab1")>>=
+summary(fullModel2, caption=cap)
+@
+
+Towards the conclusions we might draw from this model:
+\begin{enumerate}
+  \item Inside the general distribution of ant mass, the colony-level
+  contribution does not vary greatly; the mean and standard deviation of the 
+  coefficients are 
+  \Sexpr{coeffs <- c(162.4777,161.4726,166.4157 ,161.6677,165.7055,161.7623);
+  mean(coeffs)} and \Sexpr{sd(coeffs)}, respectively.
+  \item There's a statistically significant \textit{negative} relationship
+  between $Mass$ and $Distance$. Given that $Mass$ also includes any food
+  carried by the specimen, this may lead one to conclude that ants,
+  in general, employ the "energy conservative" strategy. That is, our full
+  model suggests that, all other factors held constant, moving from one
+  distance level to a higher level will yield a decrease in mass. However,
+  colony-level analysis shows that this isn't the full picture (see figure
+  \ref{fig:q3ColonyRegression}). In particular, only Colony 1 had a model whose
+  'Distance' coefficients were negative (see table 3). All other Colonies had 
+  models with positive 'Distance' coefficients. That being said, all Colony
+  models had \textit{adjusted} $R^2$ values greater than than $0.98$, giving us
+  some assurance that these models are capturing a lot of the underlying
+  variability in $Mass$. This discrepancy amongst the colonies should lead us
+  to conclude that each colony employs its own strategy. Namely, Colony 1
+  is ``energy conservative'' while the other colonies are 
+  ``worker conservative''. 
+\end{enumerate}
+
+<<q3RegAnalysisPlots, fig.cap="The residual plot in the top left indicates some unexplained curvature that the AV and CPR plots corroborate. After modeling 'Mass' $\\sim$ 'Colony' + 'Size.class' + 'Distance' + 'Headwidth' + 'Headwidth$^{2}$', the residuals in the bottom right plot don't seem to indicate any extra curvature.", dependson=c("q3RegAnalysis")>>=
+
+ggplot(data=data.frame(Y=fullModel$residuals,
+                       X=ants.df$Headwidth),
+       aes(x=X,y=Y)) +
+  geom_point(shape=1) +
+  stat_smooth(method="loess", se=FALSE, color='red', lty=2) +
+  stat_smooth(method="lm", se=FALSE, color='blue', alpha=0.65) +
+  theme_bw() +
+  labs(x="Headwidth",
+       y="Full Model Residual's",
+       title="Residuals versus Headwidth")
+
+ggplot(data=data.frame(Y=partialModel$residuals, X=partialModel2$residuals),
+       aes(x=X,y=Y)) +
+  geom_point(shape=1) +
+  stat_smooth(method="loess", se=FALSE, color='red', lty=2) +
+  stat_smooth(method="lm", se=FALSE, color='blue') +
+  theme_bw() +
+  labs(x="Headwidth ~ Partial Model",
+       y="Partial Model's residuals",
+       title="AV-plot for Headwidth")
+
+ggplot(data=data.frame(Y=fullModel$residuals +
+                         fullModel$coefficients["Headwidth"] *
+                         ants.df$Headwidth,
+                       X=ants.df$Headwidth),
+       aes(x=X,y=Y)) +
+  geom_point(shape=1) +
+  stat_smooth(method="loess", se=FALSE, color='red', lty=2) +
+  stat_smooth(method="lm", se=FALSE, color='blue', alpha=0.65) +
+  theme_bw() +
+  labs(x="Headwidth",
+       y="Headwidth's Component + Residual",
+       title="CPR-plot for Headwidth")
+
+fun <- function(x) {
+  sum(fullModel2$coefficients[c("Headwidth", "I(Headwidth^2)")] * c(x,x^2))
+}
+
+ggplot(data=data.frame(Y=fullModel2$residuals,
+                       X=ants.df$Headwidth),
+       aes(x=X,y=Y)) +
+  geom_point(shape=1) +
+  stat_smooth(method="loess", se=FALSE, color='red', lty=2) +
+  stat_smooth(method="lm", se=FALSE, color='blue') +
+  theme_bw() +
+  labs(x="Headwidth", y="Residuals",
+       title="Residuals from model with Headwidth + Headwidth^2 vs. Headwidth")
+@
+<<q3ColonyRegression, dependson=c("q3"), results='asis', out.width="0.85\\textwidth", fig.cap="Least-squares coefficients for full models fit on the individual colonies.">>=
+ants.df <- within(ants.df, Headwidth2 <- Headwidth^2)
+tmp <- lapply(levels(ants.df$Colony), function(lvl) {
+  model <- lm(Mass ~ 0 + ., data=subset(ants.df, Colony==lvl, select=-Colony))
+  coefs <- coefficients(summary(model))[,c(1,4)]
+  adjustedR2 <- round(summary(model)$adj.r.squared, 4)
+  
+  cap <- paste0("\\texttt{summary} for full model regression on Colony ",
+                lvl, " with adjusted $R^2 = $", adjustedR2, ".")
+  print(xtable(model, caption=cap))
+  out <- matrix(coefs[,1], nrow=1)
+  colnames(out) <- names(coefficients(model))
+  out <- data.frame(Colony=lvl, out)
+  cbind(melt(out, id.vars=c("Colony")), p=coefs[,2])
+})
+
+tmp <- do.call(rbind, tmp)
+ggplot(data=tmp,
+       aes(y=variable, x=value, color=Colony,
+           shape=cut(p, breaks=c(0, 0.01, 0.05, 0.1, 1)))
+       ) +
+  geom_point(size=3) +
+  scale_shape_discrete("p-value", solid=FALSE)+
+  labs(y=NULL, x="Least-squares coefficient") +
+  theme_bw()
+@
+% Notes: 
+% 1. converted "Distance" to a categorical variable, since it had 5 unique
+% levels.
+% 2. removed rows with NA's
+% 3. removed "headwidth..mm." column since it's a linear transformation of Headwith
+% EDA comments:
+% Class.Size = (XS, S, M, L, XL)
+% Colony 6 is predominantly M, L, and XL ants
+% Colonies 1 and 4 have an abnormally high number of L ants
+% Full model (without interactions):
+% There's a direct relationship between size and mass: meaning, as we step up
+% from one class to the next class 
+
+\end{document}

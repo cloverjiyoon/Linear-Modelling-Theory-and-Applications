@@ -1,0 +1,216 @@
+---
+title: "151AHW2"
+author: "Jiyoon Clover Jeong"
+date: "9/21/2017"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# 5-(c)
+
+  From 5.2.2, we know that 
+  
+  Prestige =  -6.7943 + 4.1866 Education + 0.0013136 Income - 0.0089052 Woman
+  
+  $\sigma_{\hat{e}}$ = 7.846
+  
+  degrees of freedom for t-distribution : 102 - 3 - 1 = 98 (n-p-1)
+  
+  $x_0^\intercal = (1, 13, 12000, 50)$. 
+
+  
+
+```{r}
+
+data <- matrix(0, nrow=4, ncol=4)
+colnames(data)<- c("Pres", "Educ", "Inc", "%W")
+rownames(data)<- c("Pres", "Educ", "Inc", "%W")
+  
+  uppertri <- c(253618, 55326, 12513, 37748108, 8121410,
+  6534383460, 131909, 32281, 14093097, 187312)
+  
+  data[upper.tri(data, diag=TRUE)] <- uppertri
+  data[lower.tri(data)] <- t(data)[lower.tri(data)]
+  
+  finalsum <- matrix(c(102, 1095, 693386, 2956), nrow=4, ncol = 1)
+  # we don't need prestige, replace sum of prestige as n = 102 (sum of 1*102)
+
+  XtX <- cbind(finalsum, rbind(finalsum[-1],data[-1,-1]))
+  XtXinv <- solve(XtX)
+  
+  
+  
+  t_0.05 <- qt(p=0.95, df=102-3-1)
+  beta <- c(-6.7943, 4.1866, 0.0013136, -0.0089052)
+  x_0 <- c(1, 13, 12000, 50)
+  std_err <- 7.846
+  
+  
+  
+  var_delta <- std_err^2 * x_0 %*% XtXinv %*% x_0     # var(Y_hat0 - E(Y0))
+  var_D <- std_err^2 * (1 + x_0 %*% XtXinv %*% x_0 )  # var(Y_hat0 - Y0)
+  
+  cat("delta = Y_hat0 - E(Y0)","D = Y_hat0 - Y0\n",sep = "\n")
+  cat("var(delta) : ", var_delta, "\nvar(D): ", var_D,"\n\n")
+
+  Y_hat0 <- x_0 %*% beta;
+  cat("Y_hat0 (Point estimate) : \n")
+  as.numeric(Y_hat0)
+
+  cat("Confidence interval for E(Y_0)\n")
+  Y_hat0 + c(-1,1) * t_0.05 * sqrt(var_delta)
+
+  cat("Confidence interval for Y_0\n")
+  Y_hat0 + c(-1,1) * t_0.05 * sqrt(var_D)
+
+
+```
+
+
+## 5 - (d)
+ 
+  
+```{r}
+  x_0 <- c(1, 0, 50000, 100)
+  Y_hat <- as.numeric(x_0 %*% beta)
+  cat("Y_hat (Estimated point) :", Y_hat,"\n")
+
+  var_delta <- std_err^2 * x_0 %*% XtXinv %*% x_0 
+  var_D <- std_err^2 * (1 + x_0 %*% XtXinv %*% x_0 )
+  cat("var(delta) : ", var_delta, "\nvar(D): ", var_D)
+  
+```
+
+Estimated variance of the forecast error ( Var(D) = Var(Y_hat - Y) ) is 64.3 in part (c) while it is 333.278 in part(d). Since Var(D) in part(d) is almost 5 times greater than Var(D) in part(c), it suggests that error is very large and so does uncertainty. It is understandable since there is no occupation which has similar characteristics as the given data.
+
+(given data : an occupation with an average income of $50,000, an average education of 0 years, and 100% women.) 
+
+  
+
+## 6-(a)
+
+```{r}
+
+dat <- read.csv("/Users/cloverjiyoon/2017Fall/Stat 151A/Lab/Lab3/bodyfat.csv")
+n = dim(dat)[1]
+p <- 4
+q <- 1
+
+fit <- lm(bodyfat ~ Knee + Thigh + Hip + Ankle, data = dat)
+RSS_M <- sum(resid(fit)^2)
+
+```
+
+
+<Test for Null hypothesis>
+
+$$H_0 : \beta_{knee} + \beta_{thigh} = \beta_{hip} + \beta_{ankle}$$.
+
+Since $\beta_{knee} = -\beta_{thigh} + \beta_{hip} + \beta_{ankle}$,
+the model can then be rewritten as
+
+$$\text{bodyfat} = \beta_0 + \beta_{thigh} (\text{thigh} - \text{knee}) + \beta_{hip} (\text{hip} + \text{knee}) + \beta_{ankle} (\text{ankle} + \text{knee})$$
+
+
+
+
+Use formula
+$$
+\frac{(\text{RSS}(m) - \text{RSS}(M)) / q}{\text{RSS}(M) / (n - p - 1)}
+$$
+where q is the number of dropped variable.
+
+
+```{r}
+fit_m <- lm(bodyfat ~ I(Thigh - Knee) + I(Hip + Knee) + I(Ankle + Knee), data=dat)
+RSS_m <- sum(resid(fit_m)^2)
+Fstat1 <- ((RSS_m - RSS_M) /q) / (RSS_M / (n - p - 1))
+
+cat("F statistics is : ", Fstat1,"\n")
+cat("Degree of freedom is  (1, 247)\n")
+cat("P value is : ", 1- pf(Fstat1,1,n-p-1),"\n")
+```
+
+
+
+General way to solve problem ======================================
+
+
+Can write hypothesis as $H_0 : L \beta = 0$, where
+
+$$L = \begin{bmatrix}
+0 & 1 & 1 & -1 & -1
+\end{bmatrix}$$
+
+Use formula
+$$\frac{(L\hat{\beta} - c)^\top [L (X^\top X)^{-1} L^\top]^{-1} (L\hat{\beta} - c) / q}   {\text{RSS}(M) / (n - p - 1)}.$$
+
+
+```{r}
+X <- as.matrix(cbind(1, dat[,c("Knee", "Thigh", "Hip", "Ankle")]))
+y <- as.numeric(dat$bodyfat)
+beta_hat <- solve(t(X) %*% X) %*% t(X) %*% y
+y_hat <- X %*% beta_hat
+L <- matrix(c(0,1,1,-1,-1), nrow = 1)
+Fstat2 <- (t(L %*% beta_hat) %*% solve(L %*% solve(t(X) %*% X) %*% t(L)) %*% (L %*% beta_hat) / q) / (sum((y - y_hat)^2) / (n - p - 1))
+
+
+cat("F statistics is : ", Fstat2,"\n")
+cat("Degree of freedom is  (1, 247)\n")
+cat("P value is : ", 1- pf(Fstat2,1,n-p-1) ,"\n")
+
+
+```
+
+Check that they match.
+```{r}
+Fstat1
+Fstat2
+```
+
+Since P value is fairly large, we do not reject the null hypothesis.
+
+## 6-(b)
+
+
+```{r}
+XtXinv <- solve(t(X) %*% X)
+S <- sqrt(sum(resid(fit)^2)/(n-p-1))    # RSE = sqrt(RSS/n-p-1)
+var_mat <- S^2 * XtXinv
+numerator <- beta_hat[2] + beta_hat[3] - beta_hat[4] - beta_hat[5]
+denominator <- sqrt(sum(diag(var_mat)[2:5]) + 2*var_mat[2,3] - 2*var_mat[2,4] - 2*var_mat[2,5] - 2*var_mat[3,4] -2*var_mat[3,5] +
+                      2*var_mat[4,5])
+
+
+
+t <- as.numeric(numerator / denominator)
+cat("T statistics is: ", t, "\n")
+cat("Degree of Freedom : ", n-p-1, "\n")
+cat("P value : ", 2*(1-pt(t,247)), "\n")
+
+
+
+
+
+```
+
+
+
+
+## 6-(c)
+
+
+```{r}
+
+cat("Square of T statistics : ", t^2, "\n")
+cat("F statistics : ", Fstat1, "\n")
+
+```
+
+As we can see, square value of T statistics is equal to the F statistics value. 

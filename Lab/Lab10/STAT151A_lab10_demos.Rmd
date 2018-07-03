@@ -1,0 +1,105 @@
+---
+title: 'STAT 151A: Lab 10: Cross Validation'
+author: "Billy Fang"
+date: "3 November 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+# k-fold Cross Validation
+
+Using the same data to construct a model and evaluate it can lead to overfitting,
+and poor generalization if you want to predict on future data.
+
+One way to cope is *data splitting*: split your data into two subsets (training data
+and testing data), train models using the training data only,
+then evaluate prediction error on the testing data.
+
+A slightly more sophisticated popular method is *$k$-fold cross validation*.
+Let $\mathcal{D}$ denote the full dataset.
+We partition the dataset $\mathcal{D}$
+into $k$ disjoint subsets $\mathcal{D}_1,\ldots,\mathcal{D}_k$
+of roughly equal size (typically chosen randomly).
+
+How to compute the CV score for your model $m$.
+
+- For each fold $j = 1, \ldots, k$
+    - Fit your model $m$ on the subset $\mathcal{D} - \mathcal{D}_j$. In the case of a linear model, you will get some $\widehat{\beta}(m, j)$.
+    - Use this fitted model to predict on the remaining part of the data $\mathcal{D}_j$
+    and compute the prediction error.
+    In the case of a linear model, it might look something like
+    $$\text{MSE}(m,j) := \frac{1}{|\mathcal{D}_j|} \sum_{i \in \mathcal{D}_j} (y_i - x_i^\top \widehat{\beta}(m, j))^2.$$
+- Average (or add) these prediction errors over all the folds. The final value might look something like
+$$\text{CV}(m) = \frac{1}{k} \sum_{j=1}^k \text{MSE}(m, j) = \frac{1}{k} \sum_{j=1}^k \frac{1}{|\mathcal{D}_j|} \sum_{i \in \mathcal{D}_j} (y_i - x_i^\top \widehat{\beta}(m, j))^2.$$
+
+This quantity is a rough measure of prediction error of the model $m$. You can compare $\text{CV}(m)$
+for your different candidate models, and select the model that has the smallest value.
+
+Implementation considerations:
+
+- You may use `createFolds()` from the `caret` package to create randomly chosen folds as described above.
+- You can use `predict()` using your fitted `lm` object to get this model's prediction on new data. See `help(predict.lm)` for more detail.
+
+Here is some sample code on how to use the above two functions.
+
+```{r, message=F, warning=F}
+library(faraway)
+library(caret)
+```
+
+
+```{r}
+data(seatpos)
+head(seatpos)
+n <- dim(seatpos)[1]
+n
+
+folds <- createFolds(seatpos$hipcenter, k=5, list=T)
+folds
+
+# Example for computing prediction error on fold 1,
+# for the model that uses Ht, Age, Leg
+mod <- lm(hipcenter ~ Ht + Age + Leg, data=seatpos[-folds[[1]],])
+folds[[1]]
+head(mod$model, 10)
+dim(mod$model)
+n - length(folds[[1]])
+# use help(predict.lm) to see how to use predict()
+preds <- predict(mod, seatpos[folds[[1]], ])
+preds
+yval <- seatpos[folds[[1]], "hipcenter"]
+MSE <- 1 / length(folds[[1]]) * sum((preds - yval)^2)
+MSE
+```
+
+
+
+# Leave one out cross validation
+
+The special case $k=n$ is leave one out cross validation; each fold
+involves training a model on all but one data point, and the model is evaluated
+based on prediction error of the last data point.
+
+In this case, we have an explicit formula for the prediction error,
+since the predicted value for $x_i$ is $x_i^\top \widehat{\beta}_{[i]}(m)$,
+where $\widehat{\beta}_{[i]}(m)$ is trained on the dataset with the $i$th point excluded.
+The error is precisely the predicted residual
+$$\widehat{e}_{[i]}(m) := y_i - x_i^\top \widehat{\beta}_{[i]}(m)$$
+so $\text{MSE}_i$ from earlier is simply $\widehat{e}^2_{[i]}(m)$ in this case.
+Recall the earlier formula
+$$\widehat{e}_{[i]}(m) = \frac{\widehat{e}_i(m)}{1 - h_i(m)}.$$
+Thus we can consider the Predicted REsidual Sum of Squares (PRESS),
+$$\text{PRESS}(m) := \sum_{i=1}^n \frac{\widehat{e}_i^2(m)}{(1 - h_i(m))^2},$$
+which is basically $\sum_{i=1}^k \text{MSE}_i$ in this special case of $k=n$ folds.
+In my definition of $\text{CV}(m)$ above, I averaged, so
+$$\text{CV}(m) = \frac{1}{n} \text{PRESS}(m)$$ in the case $k=n$.
+But this factor of $\frac{1}{n}$ does not matter when comparing across different models,
+as long as you are consistent.
+
+Implementation considerations:
+
+- `hatvalues()` can take an `lm` object as argument and give you the leverage values $h_i$

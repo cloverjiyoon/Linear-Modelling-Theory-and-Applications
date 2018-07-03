@@ -1,0 +1,376 @@
+---
+title: 'Lab 06: Leverage'
+author: "Billy Fang"
+date: "October 5, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE, cache=T}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=F}
+library(car)
+data(Duncan)
+```
+
+# Review of yesterday's lecture
+
+**Relevant reading: 11.1, 11.2, 11.8.1-2**
+
+Hat matrix:
+$$H := X(X^\top X)^{-1} X^\top$$
+Fitted values:
+$$\widehat{y} = Hy$$
+
+Writing out the above yields
+\begin{align}
+\widehat{y}_1 &= h_{1,1} y_1 + h_{1,2} y_2 + \cdots + h_{1,n} y_n
+\\
+&\vdots
+\\
+\widehat{y}_n &= h_{n,1} y_1 + h_{n,2} y_2 + \cdots + h_{n,n} y_n.
+\end{align}
+
+How much does $y_2$ contribute to all the fitted values $\widehat{y}_1, \ldots, \widehat{y}_n$?
+Could consider
+$$h_{12}^2 + h_{22}^2 + h_{32}^2 + \cdots + h_{n2}^2.$$
+By symmetry of $H$, this can be viewed as the dot product of the second row of $H$
+with the second column of $H$, which is the $(2,2)$ entry of $H^2$.
+By idempotence of $H$, we have $H^2=H$ so the above quantity is simply
+$h_2 \equiv h_{2,2}$.
+More generally, how much $y_i$ contributes to all the fitted values
+$\widehat{y}_1, \ldots, \widehat{y}_n$
+can be measured by
+$$h_i \equiv h_{ii} = h_{1,i}^2 + \cdots + h_{n,i}^2.$$
+Furthermore we can go back to the formula $H = X(X^\top X)^{-1} X^\top$
+and note that the $j$th diagonal entry can be written as
+$$h_i = x_i^\top (X^\top X)^{-1} x_i,\tag{1}$$
+where $x_i^\top$ is the $i$th row of the design matrix.
+We call this **leverage** of the $i$th observation.
+As emphasized in lecture, this only depends on the observed explanatory variables
+$x_1, \ldots, x_n$.
+
+
+
+
+1. $h_i$ measures how far $x_i$ (explanatory variables for $j$th observation)
+is from the other observed explanatory variables. (See discussion below.)
+
+2. $h_i$ measures how much *potential* the $i$th subject has to influence the
+the fitted line/plane.
+
+
+Does this quantity (1) look familiar?
+
+Let $X$ be $n \times (p+1)$ have an intercept column and have full column rank.
+Review the following facts from lecture:
+
+- $h_1 + \cdots + h_n = p + 1$
+- $\text{Var}(\widehat{y}_i) = \sigma^2 h_i$
+- $\text{Var}(e_i) = \sigma^2 (1 - h_i)$, where $e_i := y_i - \widehat{y}_i$ is the $i$th residual
+- $\frac{1}{n} \le h_i \le 1$ (in general if there is no intercept column in $X$, then $0 \le h_i \le 1$)
+- when $h_i$ is large (close to $1$), then $\widehat{y}_i$ is close to $y_i$
+
+# A distance by any other name would smell as sweet
+
+<img style="float: right;" src="rose.png", width="300px">
+
+
+
+
+Let $$S := \frac{1}{n-1} \sum_{j=1}^n (x_j - \overline{x})(x_j - \overline{x})^\top
+= \frac{1}{n-1} (X^*)^\top (X^*)$$
+be the sample covariance matrix of the explanatory variables.
+Remember, here $x_j^\top$ denotes the $j$th row of $X$
+(the explanatory variables for the $j$th person),
+and $\overline{x} := \frac{1}{n} \sum_{i=1}^n x_i$.
+Note that $X^*$ is $n \times p$ and whose columns are
+the non-intercept columns of $X$ centered around their mean.
+
+[If we think of the $x_i$ as i.i.d. variables coming from some distribution, then
+the covariance matrix of such a random vector $x$ is
+$\text{Cov}(x) = \mathbb{E}[(x - \mathbb{E}[x])(x - \mathbb{E}[x])^\top]$.
+By comparing this with the definition of $S$, we see that $S$ is an estimate of $\text{Cov}(x)$.]
+
+Using $S$ can define a norm ("length" or "size") for any vector $v \in \mathbb{R}^n$
+by
+$$\sqrt{v^\top S^{-1} v}.\tag{$*$}$$
+Special cases:
+
+- When $S = I_n$ then this is simply $$\sqrt{v^\top v} = \sqrt{v_1^2 + \cdots + v_n^2} = \|v\|.$$
+- When $S$ is diagonal with diagonal elements $s_1, \ldots, s_n$,
+then this is
+$$\sqrt{\frac{v_1^2}{s_1} + \cdots + \frac{v_n^2}{s_n}}.$$
+
+Consider the following examples for $S$.
+
+$$
+\begin{bmatrix}
+1 \\ & 1
+\end{bmatrix},
+\begin{bmatrix}
+2 \\ & 2
+\end{bmatrix},
+\begin{bmatrix}
+1 \\ & 2
+\end{bmatrix},
+\begin{bmatrix}
+2 \\ & 1
+\end{bmatrix},
+\begin{bmatrix}
+1 & 0.1 \\ 0.1 & 1
+\end{bmatrix},
+\begin{bmatrix}
+1 & 0.5 \\ 0.5 & 1
+\end{bmatrix},
+\begin{bmatrix}
+1 & -0.1 \\ -0.1 & 1
+\end{bmatrix},
+\begin{bmatrix}
+1 & -0.5 \\ -0.5 & 1
+\end{bmatrix}
+$$
+The contours of constant distance [from the origin] appear as follows.
+
+```{r echo=F, out.width='25%'}
+par(pty="s")
+Alist <- list(diag(2), 3 * diag(2), diag(c(1,3)), diag(c(3,1)),
+              matrix(c(1,0.5,0.5,1), 2),
+              matrix(c(1,0.9,0.9,1), 2),
+              matrix(c(1,-0.5,-0.5,1), 2),
+              matrix(c(1,-0.9,-0.9,1), 2))
+for (A in Alist) {
+  plot(1, type="n", xlim=c(-2,2), ylim=c(-2,2), ylab="", xlab="")
+  ellipse(c(0,0), shape=A, radius=1, center.cex=0, col=1)
+}
+```
+
+The **Mahalanobis distance** for the $i$th observation in the design matrix $X$
+is
+$$\sqrt{(x_i - \overline{x})^\top S^{-1} (x_i - \overline{x})},$$
+where $S^{-1}$ is as defined above.
+It measures how far $x_i$ ($i$th data point) is from the centroid $\overline{x}$
+using this norm as defined in ($*$) above.
+
+How is this related to the leverage $h_i = x_i^\top (X^\top X)^{-1} x_i$?
+Your lecture notes mention the following equality.
+$$\underbrace{(x_i - \overline{x})^\top S^{-1} (x_i - \overline{x})}_{\Gamma_i} = (n - 1) (h_i - \frac{1}{n})$$
+or equivalently
+$$h_i = \frac{1}{n} + \underbrace{(x_i - \overline{x})^\top [(X^*)^\top (X^*)]^{-1} (x_i - \overline{x})}_{\frac{1}{n-1} \Gamma_i}$$
+(See page 290 of the textbook.)
+Again, what does this relationship between [squared] Mahalanobis distance $\Gamma_i$
+and leverage $h_i$ imply qualitatively?
+
+<small style="color:#808080">
+Optional proof:
+If we take the design matrix $X$ (with intercept column and full column rank) and center the non-intercept columns (i.e. replacing them with the columns of $X^*$), then the column space does not change,
+so the hat matrix $H = X(X^\top X)^{-1} X^\top$.
+So without loss of generality we may assume
+$$X = \left[\begin{array}{c|ccc}
+1 & \ & & \\\
+\vdots & & X^*\\
+1
+\end{array}\right].$$
+Then
+$$X^\top X = \begin{bmatrix}
+n\\ & (X^*)^\top (X^*)
+\end{bmatrix}$$
+is block diagonal (because each column of $X^*$ sums to zero),
+so its inverse can be found by inverting each block.
+Finally, the $i$th diagonal element of $H$ is
+$$h_i
+= x_i^\top (X^\top X)^{-1} x_i
+= \begin{bmatrix}1 & x_i - \bar{x}\end{bmatrix}
+\begin{bmatrix}
+\frac{1}{n} \\ & [(X^*)^\top (X^*)]^{-1}
+\end{bmatrix}
+\begin{bmatrix}1 \\ x_i - \bar{x}\end{bmatrix}$$
+which yields the result.
+</small>
+
+# Example: Duncan's prestige data
+
+*Reproducing Figure 11.5 in section 11.2.*
+
+
+```{r}
+head(Duncan)
+```
+
+
+```{r}
+mod <- lm(prestige ~ income + education, data=Duncan)
+X <- cbind(1, Duncan[,c("income", "education")])
+X <- unname(as.matrix(X))
+hat(X) # hat function gives leverage values
+
+# manually computing hat values
+H <- X %*% solve(t(X) %*% X) %*% t(X)
+diag(H)
+```
+
+```{r, fig.width = 4.5}
+lev <- diag(H)
+n <- dim(Duncan)[1]
+p <- 2
+plot(1:n, lev)
+```
+
+```{r, fig.width = 4.5, fig.show='hold'}
+lev.sorted <- sort(lev, decreasing=T, index.return=T)
+lev.sorted$x[1:3]
+rownames(Duncan)[lev.sorted$ix[1:3]]
+plot(1:n, lev)
+for(i in lev.sorted$ix[1:3]) {
+  text(i, lev[i]-0.02, rownames(Duncan)[i])
+}
+hbar <- (p+1)/n
+abline(h=2*hbar, lty=2)
+abline(h=3*hbar, lty=2)
+
+plot(Duncan$education, Duncan$income, xlim=c(-20, 120), ylim=c(-40, 120), xlab="education", ylab="income")
+i = lev.sorted$ix[1]
+text(Duncan$education[i]-20, Duncan$income[i], rownames(Duncan)[i], cex=0.8)
+i = lev.sorted$ix[2]
+text(Duncan$education[i]-20, Duncan$income[i], rownames(Duncan)[i], cex=0.8)
+i = lev.sorted$ix[3]
+text(Duncan$education[i]+20, Duncan$income[i], rownames(Duncan)[i], cex=0.8)
+centroid <- c(mean(Duncan$education), mean(Duncan$income))
+points(centroid[1], centroid[2], pch=15)
+Xstar <- scale(X[,2:3], scale=F) # centering columns
+A <- (t(Xstar) %*% Xstar)
+ellipse(centroid, shape=A, radius=sqrt(2*hbar - 1/n), col=1, lty=2, center.cex=0)
+ellipse(centroid, shape=A, radius=sqrt(3*hbar - 1/n), col=1, lty=2, center.cex=0)
+```
+
+
+
+# Added variable plots: residuals vs. residuals
+
+**Relevant reading: 11.6.1** (also see the note I uploaded to bCourses before the midterm)
+
+For each subject $i=1, \ldots, n$ we have a response variable $y_i$
+and explanatory variables $x_{i1}, \ldots, x_{ip}$.
+We can do a least squares fit to get
+coefficients $\widehat{\beta}_0, \ldots, \widehat{\beta}_p$
+that give fitted values
+$$\widehat{y}_i = \widehat{\beta}_0 + \widehat{\beta}_1 x_{i1} + \cdots + \widehat{\beta}_p x_{ip}.$$
+Suppose instead we do the following three regressions.
+(Note here $x_j$ denotes columns of $X$.)
+
+(a) Regress $y$ onto all variables except the first (columns $x_2, \ldots, x_p$) to get fitted value $\widetilde{\widehat{y}}$ and residuals $y - \widetilde{\widehat{y}}$.
+(b) Regress the first variable's column $x_1$ on the other variables
+(columns $x_2, \ldots, x_p$) to get fitted value $\widehat{x}_1$ and residual $x - \widehat{x}$.
+(c) Do a simple regression of the residuals $y - \widetilde{\widehat{y}}$
+onto the residuals $x - \widehat{x}$.
+
+A plot of the last regression is called an **added variable plot**
+or a **partial regression plot**.
+
+Why not just just plot $y$ against $x_1$? Still contains effect of other variables, not useful for assessing the relationship between $x_1$ and $y$ *holding all other variables constant*. For example, strong correlation between $x_1$ and the other variables may cause
+a $y$ vs. $x_1$ plot to show a negative trend,
+even if there is a true linear model with $\beta_1 > 0$.
+[See [this stackexchange answer](https://stats.stackexchange.com/a/125575) for more detail.]
+
+The regressions (a) and (b) try extract the parts of $y$ and $x_1$ that are not explained by the other variables $x_2, \ldots, x_p$,
+and then (c) views this relationship between $y$ and $x_1$,
+*given the effect of the other variables.*
+
+We have the following interesting properties.
+
+1. The slope from the simple regression (c) is precisely $\widehat{\beta}_1$ from the original multiple regression. [This simple regression also has zero intercept.]
+
+2. The residuals from the simple regression (c) are the same as the residuals from the original multiple regression.
+
+3. *Useful for detecting points of high leverage and/or high influence.*
+
+4. Since the residuals are the same, may be good for identifying violations of model assumptions (heteroscedasticity, nonlinearity, etc.)
+
+```{r fig.show='hold', fig.width=4}
+avPlot(mod, "income", id.method="x", id.n=3)
+avPlot(mod, "education", id.method="x", id.n=3)
+```
+
+How to interpret high leverage points on such plots?
+
+
+```{r fig.show='hold', fig.width=4}
+coef(mod)
+rownames(Duncan)[lev.sorted$ix[1:3]]
+Duncan_del <- Duncan[-lev.sorted$ix[2:3],]
+mod_del <- lm(prestige ~ income + education, data=Duncan_del)
+coef(mod_del)
+avPlot(mod_del, "income", id.method="x", id.n=1)
+avPlot(mod_del, "education", id.method="x", id.n=1)
+```
+
+# Component plus residuals plot
+
+**Relevant reading: 12.3**
+
+<img src="resid.png", width="500px">
+
+
+Residual plots are not enough to identify the type of nonlinearity.
+Plot (a) is an example of monotone might be fixed by using $Y = \alpha + \beta \sqrt{X} + \epsilon$,
+while (b) might be fixed by $Y = \alpha + \beta_1 X + \beta_2 X^2 + \epsilon$,
+but both have the same residual plots.
+
+Added variable plots can also show nonlinearity, but are not useful for locating a transformation to correct it,
+since it adjusts $X_j$ after accounting for the other variables,
+but it is the unadjusted $X_j$ that is transformed.
+
+**Component plus residual** plots (a.k.a. partial residual plots) offer a useful alternative.
+(But they are not as suitable for analyzing leverage and influence on coefficients.)
+
+
+
+We define the **partial residuals for the $j$th explanatory variable** by
+\begin{align}
+e^{(j)}_i &= e_i + \widehat{\beta}_j x_{ij}
+\\
+&= [y_i - (\widehat{\beta}_0 + \widehat{\beta}_1 x_{i1} + \cdots + \widehat{\beta}_p x_{ip})] + \widehat{\beta}_j x_{ij}
+\end{align}
+(Add back the linear component)
+
+The component plus residual plot is the plot of $e^{(j)}$ vs $x_j$.
+
+```{r fig.width=4, fig.show='hold'}
+data("SLID")
+SLID <- na.omit(SLID)
+mod <- lm(log(wages) ~ sex + age + education, data=SLID)
+coef(mod)
+summary(mod)$r.squared
+crPlot(mod, variable="age")
+crPlot(mod, variable="education")
+```
+
+Can suggest how to transform variables.
+
+```{r fig.width=4, fig.show='hold'}
+mod2 <- lm(log(wages) ~ sex + age + I(age^2) + I(education^2), data=SLID)
+coef(mod2)
+summary(mod2)$r.squared
+#crPlot(mod2, variable="age")
+crPlot(mod2, variable="I(education^2)")
+```
+
+
+
+<!--
+When do they work?
+
+Suppose the following model actually generates the data.
+$$y_i = \beta_0 + f(x_{i1}) + \beta_2 x_{i2} + \cdots + \beta_p x_{ip} + \epsilon_i$$
+but we do not know this, and decide to fit the "working model"
+$$y_i = \beta_0 + \beta'_1 x_{i1} + \beta'_2 x_{i2} + \cdots + \beta'_p x_{ip} + \epsilon'_i.$$
+The partial residual $e^{(1)}_i = e_i + \hat{\beta}_1 x_{i1}$ estimates
+$\epsilon_i^{(i)} = \beta'_1 x_{i1} + \epsilon'_i$
+but we really want to estimate $f(x_{i1}) + \epsilon_i$ which will show
+the partial relationship between $y$ and $x_1$.
+Under either of the following two cases, we will have $\epsilon_i^{1i)} = f(x_{i1}) + \epsilon_i$ as desired.
+
+1. $f(x_1)$ is a linear function
+2. The other explanatory variables $x_2, \ldots, x_p$ are linearly related to $x_1$ as $\mathbb{E}[x_{ij}] = \alpha_{j1} + \beta_{j1} = x_{i1}$.
+-->

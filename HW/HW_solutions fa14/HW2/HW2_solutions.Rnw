@@ -1,0 +1,483 @@
+\documentclass[10pt,titlepage]{article}
+
+\usepackage{../mcgill}
+
+\newcommand{\Solution}{\paragraph{\textit{Solution.}}}
+\newcommand{\y}{\mathbf{y}}
+\newcommand{\x}{\mathbf{x}}
+\renewcommand{\b}{\mathbf{b}}
+\newcommand{\one}{\mathbf{1}}
+\newcommand{\zero}{\mathbf{0}}
+\renewcommand{\I}{\mathbf{I}}
+\renewcommand{\N}{\mathcal{N}}
+
+% \renewcommand{\O}{\mathcal{O}}
+% \renewcommand{\Q}{\mathcal{Q}}
+% \renewcommand{\H}{\mathcal{H}}
+
+
+\begin{document}
+\SweaveOpts{concordance=TRUE}
+<<globalParameters,echo=FALSE,cache=FALSE>>=
+library('knitr')
+set.seed(1234)
+opts_chunk$set(comment="#",
+               tidy=FALSE,
+               warning=FALSE,
+               message=FALSE,
+               highlight=TRUE,
+               echo=TRUE,
+               cache=TRUE)
+@
+
+%%%%% knitr code to make sure things stay inside listings box:
+<<stayInside,echo=FALSE>>=
+  options(width=60)
+  listing <- function(x, options) {
+     paste("\\begin{lstlisting}[basicstyle=\\ttfamily,breaklines=true]\n",
+           x,"\\end{lstlisting}\n", sep = "")
+  }
+  
+  knit_hooks$set(source=listing, output=listing)
+@
+
+\paragraph{\#1. -- Exercise 9.6} Using the general result 
+$V(\mathbf{b}) = \sigma_{\eps}^{2}(\X'\X)^{-1}$, show that the sampling 
+variances of $A$ and $B$ in simple-regression analysis are
+\begin{align*}
+V(A) &= \frac{\sigma^{2}_{\eps} \sum X_{i}^2}{n \sum (X_i - \bar{X})^2} \\
+V(B) &=  \frac{\sigma^{2}_{\eps} }{ \sum (X_i - \bar{X})^2} \\
+\end{align*}
+%%-------------------------------
+\Solution
+When $\X = (\one_{n} \mid X)$, where $X \in \R^{n}$, we have that 
+\[
+\X'\X = \begin{pmatrix} \one_{n}' \\ X' \end{pmatrix} (\one_{n} \mid X) 
+  = \begin{pmatrix}
+      \one_{n}'\one_{n} & \one_{n}'X \\
+      X'\one_n & X'X
+    \end{pmatrix}
+  = \begin{pmatrix}
+      n & n\bar{X} \\
+    n\bar{X} & \sum_i X_i^2
+    \end{pmatrix}
+\]
+Hence,
+\[
+\left(\X'\X\right)^{-1} = \frac{1}{n\sum_i X_i^2 - \left(n \bar{X}\right)^2}
+\begin{pmatrix}
+\sum_i X_i^2 & -n\bar{X} \\
+-n\bar{X} & n
+\end{pmatrix}
+\]
+Now, observe that
+\[
+n\sum_i X_i^2 - \left(n \bar{X}\right)^2 = 
+  n\left(\sum_i X_{i}^2 - \bar{X}\sum_i X_i\right) =
+  n\sum_i \left(X_i - \bar{X}\right)^2
+\]
+Thus,
+\[
+\Sigma \equiv \sigma_{\eps}^{2}\left(\X'\X\right)^{-1} =
+  \frac{\sigma_{\eps}^{2}}{n\sum_i(X_i - \bar{X})^2}
+  \begin{pmatrix} \sum_i X_i^2 & -n\bar{X} \\ -n\bar{X} & n \end{pmatrix}
+\]
+Which shows that
+\begin{align*}
+V(A) &= \Sigma_{11} = \frac{\sigma^{2}_{\eps} \sum_i X_{i}^2}
+                            {n \sum (X_i - \bar{X})^2} \\
+V(B) &=  \Sigma_{22} = \frac{\sigma^{2}_{\eps} }{ \sum_i (X_i - \bar{X})^2} \\
+\end{align*}
+%%-------------------------------
+
+\paragraph{\#2. -- Exercise 9.14} (Note: all the values you need for (c) and 
+(d) are given in \S 5.2) Prediction: One use of a fitted regression equation is
+to \textit{predict} response-variable values for particular ``future''
+combinations of explanatory-variable scores. Suppose, therefore, that we fit
+the model $\y = \X\beta + \eps$, obtaining the least-squares estimate 
+$\mathbf{b}$ of $\beta$. Let, $\x_{0}'=[1,x_{01}, \ldots, x_{0k}]$ represent a
+set of explanatory-variable scores for which a prediction is desired, and let
+$Y_0$ be the (generally unknown, or not-yet known) corresponding value of $Y$.
+The explanatory-variable vector $\x_0'$ does not necessarily correspond to an
+observation in the sample for which the model was fit.
+\begin{enumerate}
+  \item[(a)] *If we use $\hat{Y}_0 = \x_0' \b$ to estimate $E(Y_0)$, then the
+  error in estimation is $\delta \equiv \hat{Y}_0 - E(Y_0)$. Show that if the
+  model is correct, then $E(\delta) = 0$ [i.e., $\hat{Y}_0$ is an unbiased
+  estimator of $E(Y_0)$] and that $V(\delta) = \sigma_{\eps}^2 
+  \x_0'(\X'\X)^{-1}\x_0$. 
+  %%-------------------------------
+  \Solution
+  If the model is correctly specified, then $Y_0 = \x_0\beta + \eps$, where
+  $\eps$ is some random variable with zero mean who is independent of $\x_0$.
+  Moreover, the model being correctly specified implies that
+  $E(Y_0) = E(\x_0'\beta + \eps) = \x_0'\beta$. 
+  Hence,
+  \begin{align*}
+  E(\delta) &= E\left(\hat{Y}_0 - E(Y_0)\right) \\
+            &= E\left(\hat{Y}_0\right) - E(Y_0) \\
+            &= E(\x_0'\b) - \x_0'\beta \\
+            &= E\left(\x_0'(\X'\X)^{-1}\X'\y\right) - \x_0'\beta \\
+            &= \x_0'(\X'\X)^{-1}\X'E(\y) - \x_0'\beta \\
+            &= \x_0'(\X'\X)^{-1}\X'\X\beta - \x_0'\beta \\
+            &= \x_0'\beta - \x_0'\beta
+  \end{align*}
+  Additionally,
+  \begin{align*}
+  V(\delta) &= V\left(\hat{Y}_0 - E(Y_0)\right) \\
+            &= V\left(\hat{Y}_0\right) \\
+            &= V\left(\x_0'\b\right) \\
+            &= V\left(\x_0'(\X'\X)^{-1}\X'\y\right) \\
+            &= \left(\x_0'(\X'\X)^{-1}\X'\right) V(\y) 
+            \left(\X (\X'\X)^{-1} \x_0\right) \\
+            &= \left(\x_0'(\X'\X)^{-1}\X'\right) \sigma_{\eps}^{2}\I_n 
+            \left(\X (\X'\X)^{-1} \x_0\right) \\
+            &= \sigma_{\eps}^{2} \x_0' (\X'\X)^{-1} \x_0
+  \end{align*}
+  %%-------------------------------
+  \item[(b)] *We may be interested not in estimating the expected value of
+  $Y_0$ but in predicting or forecasting the \textit{actual} value $Y_0 = 
+  \x_0' \beta + \eps_0$ that will be observed. The error in the forecast is
+  then
+  \[
+  D \equiv \hat{Y}_0 - Y_0 = \x'_0(\b - \beta) - \eps_0
+  \]
+  Show that $E(D) = 0$ and that $V(D) = \sigma_{\eps}^2[1 +
+  \x_0'(\X'\X)^{-1}\x_0]$. Why is the variance of the forecast error $D$
+  greater than the variance of $\delta$ found in part (a)?
+  %%-------------------------------
+  \Solution
+  As demonstrated in part (a), $E(\b - \beta) = \zero$, hence
+  \begin{align*}
+  E(D) &= E(\x_0'(\b-\beta)-\eps_0) \\
+    &= \x_0'E(\b - \beta) - E(\eps_0) \\
+    &= \x_0'\cdot \zero - 0 \\
+    &= 0
+  \end{align*}
+  Now, suppose that $Y_0 =\x_0'\beta + \eps_0$ where $\eps_0$ is such
+  that $E(\eps_0)$ and $\var(\eps_0) =\sigma_{\eps}^{2}$. Then,
+  \[\var(Y_0) = \var(\x_0'\beta + \eps_0) = \var(\eps) = \sigma_{\eps}^2,\]
+  and hence\footnote{see \url{%
+  https://en.wikipedia.org/wiki/Covariance_matrix#Properties} for a
+  refresher on properties of (co)variance.
+  }
+  \begin{align*}
+  \var(D) &= \var(\x_0'(\b -\beta) - \eps_0) \\
+    &= \var(\x_0'(\b-\beta)) + \var(\eps_0) - 2\cov(\x_0'(\b-\beta),\eps_0) \\
+    &= \x_0'\var(\b-\beta)\x_0 + \var(\eps_0) -2\x_0'\cov(\b-\beta,\eps_0) \\
+    &= \x_0'\var(\b)\x_0 + \sigma_{\eps}^2 - 2\x_0'\cov(\b,\eps_0)
+  \intertext{However, recall that $\b = (\X'\X)^{-1}\X'\y$, thus}
+  -2\x_0'\cov(\b,\eps_0) &= -2\x_0'(\X'\X)^{-1}\X'\cov(\y,\eps_0) \\
+    &= -2\x_0'(\X'\X)^{-1}\X'\cov(\X\beta + \eps,\eps_0) \\
+    &= -2\x_0'(\X'\X)^{-1}\X'\cov(\eps,\eps_0) \\
+    &= -2\x_0'(\X'\X)^{-1}\X'\zero \\
+    &= 0
+  \intertext{Where the last equality follows from the assumption that the
+  errors, $\eps$, are assumed to be IID. Putting this together with the 
+  general result derived in problem \#1:}
+  \var(D) &= \x_0'\var(\b) \x_0 + \sigma_{\eps}^2 \\
+    &= \sigma_{\eps}^{2}\x_0'(\X'\X)^{-1}\x_0 + \sigma_{\eps}^{2} \\
+    &= \sigma_{\eps}^{2}\left(1 + \x_0'(\X'\X)^{-1}\x_0 \right) \\
+    &> \sigma_{\eps}^{2} \x_0'(\X'\X)^{-1}\x_0 \\
+    &= \var(\delta)
+  \end{align*}
+  
+  The intuition for why $\var(D) > \var(\delta)$ stems from the fact that
+  $\delta$ is the error we get when we try and estimate the \textit{mean} of
+  $Y$ given a particular, $\x_0$. This parameter is a number. On the other hand
+  $D$ is the error we get when we try to estimate the \textit{realization} of a
+  random variable. While this, too, is just a number, the mean is more
+  efficiently estimated since it is a summary of a(n unknown) distribution.
+  Hence, from the same amount of information about the distribution, we can
+  get a less variable estimate of the mean than we can of any particular
+  realization.
+  %%-------------------------------
+  
+  \item[(c)] Use the results in parts (a) and (b), along with the Canadian
+  occupational prestige regression (see \S 5.2.2), to predict the prestige
+  score for an occupation with an average income of \$12,000, and average
+  education of 13 years, and 50\% women. Place a 90\% confidence interval
+  around the prediction assuming (i) that you wish to estimate $E(Y_0)$, and
+  (ii) that you wish to forecast an actual $Y_0$ score. (Because 
+  $\sigma_{\eps}^{2}$ is not known, you will need to use $S_{E}^2$ and the 
+  $t$-distribution.)
+  
+  %%-------------------------------
+  \Solution
+  \begin{enumerate}
+  \item[(i)]
+  Before we get to using any numbers, let's recall some facts. First, if our
+  errors are distributed such that $\eps_i \iid \N(0,\sigma_{\eps}^2)$, then
+  $\eps = (\eps_1, \ldots, \eps_n)^{T} \sim \N(\zero, \sigma_{\eps}^2 I_n)$ and
+  \begin{align*}
+  \b &= (\X'\X)^{-1}\X'\y \\
+     &= (\X'\X)^{-1}\X'(\X\beta + \eps) \\
+     &= \beta + (\X'\X)^{-1}\X'\eps \\
+     &\sim \N(\mu = \beta, \Sigma = \sigma^2_{\eps}(\X'\X)^{-1})
+  \end{align*}
+  Hence, 
+  \begin{align*}
+    \hat{Y}_0 = \x_0' \b \sim \N(\x_0'\beta,
+                \sigma_{\eps}^{2}\x_0'(\X'\X)^{-1}\x_0)
+  \end{align*}
+  Or, 
+  \[
+  \frac{\hat{Y}_0 - \x_0'\beta}{\sigma_{\eps}\sqrt{\x_0'(\X'\X)^{-1}\x_0}}
+  \sim \N(0, 1)
+  \]
+  If we knew $\sigma_{\eps}$, then we could use this fact to make a 
+  normal-based confidence interval. However, we don't have access to this
+  information, so we need to estimate it\ldots Or do we?
+  
+  Since we're assuming our errors are normally distributed, we have that
+  \[
+  S_{\eps}^2 = \frac{1}{n-p}\SUM{i}{1}{n}(Y_i - \hat{Y}_i)^2 
+    \sim \frac{\sigma_{\eps}^2}{n-p} \chi_{n-p}^{2}
+  \]
+  where $p$ is the number of columns in our design matrix. So, if we substitute
+  $S_{\eps}$ for $\sigma_{\eps}$, we'll have
+  \[
+  \frac{\frac{\hat{Y}_0 - \x_0'\beta}{\sqrt{\x_0'(\X'\X)^{-1}\x_0}}}{\sqrt{S_{\eps}^2}} \sim 
+  \frac{\N(0, \sigma_{\eps}^2)}{
+      \sigma_{\eps} \sqrt{\dfrac{\chi_{n-p}^{2}}{n-p}}
+      }
+  \sim \frac{\N(0,1)}{\sqrt{\dfrac{\chi_{n-p}^{2}}{n-p}}}
+  \sim t_{n-p}
+  \]
+  Hence, if $t_{n-p}(0.05)$ is the value such that 
+  $P(T_{n-p} \geq t_{n-p}(0.05)) = 5\%,$
+  for $T_{n-p} \sim t_{n-p}$, then
+  \begin{align*}
+  90\% &= P\left(\ord{\frac{\hat{Y}_0 - \x_0'\beta}{
+  S_{\eps}\sqrt{\x_0'(\X'\X)^{-1}\x_0}}} \leq t_{n-p}(0.05) \right) \\
+  &= P\left( - S_{\eps} t_{n-p}(0.05) \sqrt{\x_0'(\X'\X)^{-1}\x_0}  \leq 
+      \x_0'\beta - \hat{Y}_0 \leq
+      S_{\eps} t_{n-p}(0.05) \sqrt{\x_0'(\X'\X)^{-1}\x_0}\right) \\
+  &= P\left(\hat{Y}_0 - S_{\eps} t_{n-p}(0.05) \sqrt{\x_0'(\X'\X)^{-1}\x_0}
+    \leq \x_0'\beta  \leq
+    \hat{Y}_0 + S_{\eps} t_{n-p}(0.05) \sqrt{\x_0'(\X'\X)^{-1}\x_0}\right)
+  \end{align*}
+  Thus,
+  \begin{equation}\label{eq:ci1}
+  \hat{Y}_0 \pm S_{\eps} t_{n-p}(0.05) \sqrt{\x_0'(\X'\X)^{-1}\x_0}
+  \end{equation}
+  is a $90\%$ confidence interval for $\x_0'\beta = E(Y_0)$. 
+  \item[(ii)]
+  Using the work from above, we recognize that, with the previous assumption
+  that the errors are normally distributed, 
+  \[
+  \hat{Y}_0 - \left(\x_0'\beta + \eps_0\right) 
+    = D \sim \N(0,
+                \sigma_{\eps}^{2}\left(1 + \x_0'(\X'\X)^{-1}\x_0 \right))
+  \]
+  Hence,
+  \[
+  \frac{D}{\sigma_{\eps}\sqrt{1 + \x_0'(\X'\X)^{-1}\x_0}} \sim \N(0,1)
+  \]
+  which puts us in the exact same spot as before. Not surprisingly, we can
+  do the exact same trick! That is,
+  \[
+  \frac{D \Big/ \sqrt{1+\x_0'(\X'\X)^{-1}\x_0}}{\sqrt{S_{\eps}^2}} \sim 
+  \frac{\N(0, \sigma_{\eps}^2)}{
+      \sigma_{\eps} \sqrt{\chi_{n-p}^{2} \Big/ n-p}
+      }
+  \stackrel{d}{=} \frac{\N(0,1)}{\sqrt{{\chi_{n-p}^{2}}\Big/{n-p}}}
+  \stackrel{d}{=} t_{n-p}
+  \]
+  Thus,
+  \begin{equation}\label{eq:ci2}
+  \hat{Y}_0 \pm  t_{n-p}(0.05) S_{\eps} \sqrt{1 + \x_0'(\X'\X)^{-1}\x_0}
+  \end{equation}
+  is a $90\%$ confidence interval for $\x_0'\beta + \eps_0 = Y_0$. 
+  \end{enumerate}
+  So, now we're in a position to perform some calculations. From \S 5.2.2,
+  we're given that
+  \[
+  \widehat{\text{Prest}} = -6.7943 + 4.1866 \, \text{Educ} 
+    + 0.0013136 \, \text{Inc} - 0.0089052 \, \text{\%W}
+  \]
+  with $S_{E} = 7.846$. (Note that our design matrix is $102 \times 4$
+  so we'll be looking at a $t$-distribution with $102-4=98$ degrees of
+  freedom.) The code below uses these regression coefficients, and table 5.1
+  (on page 92) to calculate the confidence intervals in (\ref{eq:ci1}) and 
+  (\ref{eq:ci2}) for $\x_0' = (1, 13, 12000, 50)$. 
+  %%-------------------------------
+  <<echo=FALSE>>=
+  table_5.1 <- matrix(0, nrow=4, ncol=4)
+  column_names <- c("Pres", "Educ", "Inc", "%W")
+  
+  upper_tri <- c(253618, 55326, 12513, 37748108, 8121410,
+  6534383460, 131909, 32281, 14093097, 187312)
+  
+  table_5.1[upper.tri(table_5.1, diag=TRUE)] <- upper_tri
+  table_5.1[lower.tri(table_5.1)] <- t(table_5.1)[lower.tri(table_5.1)]
+  
+  colnames(table_5.1) <- rownames(table_5.1) <- column_names
+  sums <- matrix(c(4777, 1095, 693386, 2956), nrow=1, dimnames=list("Sum"))
+  n <- 102 # number of observations in Canadian dataset
+  Sum <- c(n,sums[-1])
+  XTX <- cbind(Sum,rbind(sums[-1],table_5.1[-1,-1]))
+  XTX_inv <- solve(XTX)
+  
+  x_0 <- c(1, 13, 12000, 50)
+  S_E <- 7.846
+  
+  var_delta <- S_E^2 * x_0 %*% XTX_inv %*% x_0 
+  var_D <- S_E^2 * (1 + x_0 %*% XTX_inv %*% x_0 )
+
+  t_0.05 <- qt(p=0.95, df=n-4)
+  b <- c(-6.7943, 4.1866, 0.0013136, -0.0089052)
+
+  Y_hat0 <- x_0 %*% b;
+  print("Point estimate, Y_hat0")
+  as.vector(Y_hat0)
+
+  print("Confidence interval for E(Y_0)")
+  Y_hat0 + c(-1,1) * t_0.05 * sqrt(var_delta)
+
+  print("Confidence interval for Y_0")
+  Y_hat0 + c(-1,1) * t_0.05 * sqrt(var_D)
+  @
+  \item[(d)] Suppose that the methods of this problem are used to forecast a
+  value of $Y$ for a combination of $X$'s very different from the $X$ values in
+  the data to which the model was fit. For example, calculate the estimated
+  variance of the forecast error for an occupation with an average income of
+  \$50,000, an average education of 0 years, and 100\% women. Is the estimated
+  variance of the forecast error large or small? Does the variance of the
+  forecast error adequately capture the uncertainty in using the regression
+  equation to predict $Y$ in this circumstance?
+  %%-------------------------------
+  \Solution
+  <<>>=
+  x_1 <- c(1, 0, 50000, 100)
+  Y_hat <- as.vector(x_1 %*% b)
+  cat(paste("Y_hat:", Y_hat))
+
+  var_delta_1 <- S_E^2 * x_1 %*% XTX_inv %*% x_1 
+  var_D_1 <- S_E^2 * (1 + x_1 %*% XTX_inv %*% x_1 )
+  cat(paste("var(delta): ", var_delta_1, "\nvar(D): ", var_D_1, sep=""))
+  @
+  For some comparison, $\var(D) = \Sexpr{var_D}$ for the forecast in part (d),
+  where as the forecast variance, here, is $\Sexpr{var_D_1}$ (which is over
+  $\Sexpr{round(var_D_1/var_D,0)}$ times larger). I'd feel comfortable saying
+  that this error is very large. In fact, this kind of uncertainty is exactly
+  what we should expect, given that there's are no occupations in this dataset
+  that have characteristics anywhere near the \$50k salary, 0 years of school
+  and 100\% women category. We're making a huge leap, here, trying to perform
+  this extrapolation, and consequently we pay the price with a massive amount
+  of uncertainty.
+  %%-------------------------------
+\end{enumerate}
+
+\paragraph{\#3.} Show that in the linear model, the square of the (sample)
+correlation between the response values $(y_1, \ldots, y_n)$ and the fitted
+values $(\hat{y}_1, \ldots, \hat{y}_{n})$ equals the coefficient of
+determination, $R^{2}$. 
+  %%-------------------------------
+  \Solution
+  Recall that (as a consequence of the normal equations), we have residuals
+  with zero mean. That is,
+  \[
+  0 = \frac{1}{n}\SUM{i}{1}{n} r_i 
+    =\frac{1}{n}\SUM{i}{1}{n}(y_i -\hat{y}_i) 
+  \EQ
+  \bar{y} = \overline{\hat{y}}
+  \]
+  Now, the square (sample) correlation, $\rho_{y\hat{y}}^2$ is given by
+  \[
+  \rho_{y\hat{y}}^{2} = 
+    \dfrac{\left(
+          \SUM{i}{1}{n}
+            (\hat{y}_i - \overline{\hat{y}})(y_i -\bar{y})
+          \right)^2}
+          { \SUM{i}{1}{n}(\hat{y}_i - \overline{\hat{y}})^2
+          \SUM{i}{1}{n}(y_i - \bar{y})^2}
+  \]
+  However, by our first observation, we can rewrite the sum in the numerator as
+  \begin{align*}
+    \SUM{i}{1}{n}(\hat{y}_i - \overline{\hat{y}})(y_i -\bar{y})
+      &= \SUM{i}{1}{n}(\hat{y}_i - \bar{y})(y_i -\bar{y}) \\
+      &= \SUM{i}{1}{n}(\hat{y}_i - \bar{y})(y_i - \hat{y}_i 
+      + \hat{y}_i -\bar{y}) \\
+      &= \SUM{i}{1}{n}(\hat{y}_i - \bar{y})(y_i - \hat{y}_i) + 
+      \SUM{i}{1}{n}(\hat{y}_i - \bar{y})(\hat{y}_i -\bar{y}) \\
+      &= \SUM{i}{1}{n}(\hat{y}_i - \bar{y})(\hat{y}_i -\bar{y}) \\
+      &= \SUM{i}{1}{n}(\hat{y}_i - \bar{y})^2
+  \end{align*}
+  Where the second to last equation follows from the identity proven in
+  question \#3 (on homework \#1). Substituting the result above, back into
+  our equation for $\rho_{y\hat{y}}^2$, and (again) using the result that
+  $\overline{\hat{y}} = \bar{y}$, we have
+  \begin{align*}
+    \rho_{y\hat{y}}^{2} &= 
+    \dfrac{\left(
+          \SUM{i}{1}{n}
+            (\hat{y}_i - \overline{\hat{y}})(y_i -\bar{y})
+          \right)^2}
+          { \SUM{i}{1}{n}(\hat{y}_i - \overline{\hat{y}})^2
+          \SUM{i}{1}{n}(y_i - \bar{y})^2} \\
+          &=  \dfrac{\left(
+          \SUM{i}{1}{n}
+            (\hat{y}_i - \bar{y})^2 \right)^2}
+          { \SUM{i}{1}{n}(\hat{y}_i - \bar{y})^2
+          \SUM{i}{1}{n}(y_i - \bar{y})^2} \\
+          &= \dfrac{\SUM{i}{1}{n}(\hat{y}_i - \bar{y})^2}
+          {\SUM{i}{1}{n}(y_i - \bar{y})^2}
+  \end{align*}
+  And, now we're done since $SS_{Reg} = \SUM{i}{1}{n}(\hat{y}_i - \bar{y})^2$,
+  $SS_{tot} = \SUM{i}{1}{n}(y_i - \bar{y})^2$, and
+  \[
+    R^2 = \frac{SS_{Reg}}{SS_{tot}} 
+      = \dfrac{\SUM{i}{1}{n}(\hat{y}_i - \bar{y})^2}
+        {\SUM{i}{1}{n}(y_i - \bar{y})^2}
+      = \rho_{y\hat{y}}^2
+  \]
+  %%-------------------------------
+\paragraph{\#4. -- Exercise 11.1} *Show that, in simple-regression analsis,
+the hat-value is
+\[
+h_i = \frac{1}{n} + \frac{(X_i - \bar{X})^2}{\sum_{j=1}^{n}(X_j - \bar{X})^2}
+\]
+[\Hint Evaluate $\x_i'(\X'\X)^{-1} \x_i$ for $\x_i' = (1,X_i)$.]
+%%-------------------------------
+\renewcommand{\H}{\mathbf{H}}
+\Solution
+Recall that since $\H = \X (\X'\X)^{-1} \X$, the $i$th diagonal entry, $h_{i}$,
+is given by
+\[
+h_{i} = \x_i'(\X'\X)^{-1}\x_i
+\]
+Now, the solution to \#1 demonstrated that, in the case of simple-regression,
+\[
+\left(\X'\X\right)^{-1} = \frac{1}{n\sum_i (X_i - \bar{X})^2}
+\begin{pmatrix}
+\sum_i X_i^2 & -n\bar{X} \\
+-n\bar{X} & n
+\end{pmatrix}
+\]
+Hence, for $\x_i' = (1, X_i)$:
+\begin{align*}
+h_{i} &= \x_{i}' \left(\X'\X\right)^{-1} \x_{i} \\
+  &= \frac{1}{n\sum_i (X_i - \bar{X})^2}
+  (1, X_i)
+  \begin{pmatrix}
+  \sum_i X_i^2 & -n\bar{X} \\
+  -n\bar{X} & n
+  \end{pmatrix}
+  \begin{pmatrix} 1 \\ X_i \end{pmatrix} \\
+  &= \frac{1}{n\sum_i (X_i - \bar{X})^2}
+  (1, X_i)
+  \begin{pmatrix} \sum_i X_i^2 - n X_i\bar{X} \\ -n\bar{X} + n X_i
+  \end{pmatrix} \\
+  &= \frac{\sum_i X_i^2 - 2nX_i\bar{X} + n X_i^2}{n\sum_i (X_i - \bar{X})^2} \\
+  &= \frac{\sum_i X_i^2 +n\left((X_i-\bar{X})^2 - \bar{X}^2\right)}{
+  n\sum_i (X_i - \bar{X})^2} \\
+  &= \frac{\sum_i X_i^2 -n\bar{X}^2 +n(X_i-\bar{X})^2}{
+  n\sum_i (X_i - \bar{X})^2} \\
+  &= \frac{\sum_i X_i^2 -n\bar{X}^2}{n\sum_i (X_i - \bar{X})^2} + 
+  \frac{(X_i-\bar{X})^2}{\sum_i (X_i - \bar{X})^2} \\
+  &= \frac{1}{n} + \frac{(X_i-\bar{X})^2}{\sum_i (X_i - \bar{X})^2}
+\end{align*}
+%%-------------------------------
+  
+\end{document}

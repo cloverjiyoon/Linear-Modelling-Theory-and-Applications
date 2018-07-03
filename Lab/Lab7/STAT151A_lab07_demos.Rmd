@@ -1,0 +1,140 @@
+---
+title: "STAT 151A Lab 07"
+author: "Billy Fang"
+date: "October 13, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+As always, feel free to leave anonymous feedback here:
+https://goo.gl/forms/fKjLeKItix2Djg5l2
+
+# Lecture review, notation/terminology clarification
+
+**Relevant reading: Parts of sections 11.3 and 11.4**
+
+- **Residuals:** $\widehat{e} := y - X \widehat{\beta} = (I - H)y$ where $H=X (X^\top X)^{-1} X^\top$. **Exercises:** Under our standard Gaussian model, what is the distribution of $\widehat{e}$? What is the distribution of $\widehat{e}_i$?
+- **Standardized residuals**: the $i$th standardized residual is
+$$r_i := \frac{\widehat{e}_i}{\widehat{\sigma} \sqrt{1 - h_i}}$$
+(denoted as $E'_i$ in the textbook).
+**Exercises:**
+What is the intuition behind why we might define this quantity this way?
+What does it measure?
+What is a drawback of this quantity?
+- **Predicted residuals**: the $i$th predicted residual is
+$$\widehat{e}_{[i]} := y_{[i]} - X_{[i]} \widehat{\beta}_{[i]},$$
+where $y_{[i]}$ and $X_{[i]}$ are obtained by deleting the $i$th entry and $i$th row respectively
+(effectively, removing the $i$th observation in the dataset)
+and $\widehat{\beta}_{[i]}$ is the least squares coefficients vector
+from using the reduced data $y_{[i]}$ and $X_{[i]}$. Some related facts:
+    - The Woodbury matrix formula allows us to write down an expression for $\widehat{\beta}_{[i]}$ in terms of quantities in the original regression, which avoids having to do a regression for every possible leave-one-out reduced dataset.
+    $$\widehat{\beta}_{[i]} = \widehat{\beta} - \frac{\widehat{e}_i}{1 - h_i} (X^\top X)^{-1} x_i \tag{1}$$
+    - This in turn leads to a formula for the predicted residual that again avoids using quantities from the regressions on the reduced datasets. $$\widehat{e}_{[i]} = \frac{\widehat{e}_i}{1 - h_i}.$$
+    **Exercise:** What is the variance of $\widehat{e}_{[i]}$?
+- Using equation (1) above along with some tedious computation,
+one can also prove the following useful expression that appears in your lecture notes.
+$$\text{RSS}_{[i]} = \text{RSS} - \frac{\widehat{e}_i^2}{1 - h_i},$$
+    where $\text{RSS}_{[i]}$ is the RSS from the fit on the reduced dataset
+- **Standardized predicted residuals**: $$t_i = \frac{\widehat{e}_{[i]} \sqrt{1-h_i}}{\sqrt{\text{RSS}_{[i]} / (n - p - 2)}}$$
+    - Your textbook and R call these **studentized residuals** and use the notation $E^*_i$. They give a seemingly different formula:
+    $$E^*_i := \frac{\widehat{e}_i}{\widehat{\sigma}_{[i]} \sqrt{1-h_i}},$$
+    where $\widehat{\sigma}_{[i]} := \sqrt{\text{RSS}_{[i]} / (n - p - 2)}$ is the estimate for the variance using the reduced dataset. **Exercise:** Show that indeed $E^*_i = t_i$.
+    - Your textbook and your homework also provide the following relationship between the standardized predicted residuals and the standardized residuals.
+    $$t_i = r_i \sqrt{\frac{n - p - 2}{n - p - 1 - r_i^2}}$$
+
+- **Cook's distance:** measuring influence by how much $\widehat{\beta}$ differs from $\widehat{\beta}_{[i]}$
+    - In lecture: perhaps try $\|\widehat{\beta} - \widehat{\beta}_{[i]}\|^2$? But this ignores the correlation structure of $\widehat{\beta}$. Correct this by using Mahalanobis distance instead.
+    - Equivalent way of understanding the "derivation" of Cook's distance: inspiration from $F$-statistic. Suppose we want to test the "hypothesis"
+    $$\beta = \widehat{\beta}_{[i]}.$$
+    This can be written in the form $L \beta = c$ with $L = I_{p+1}$ and $c = \widehat{\beta}_{[i]}$, so if we use our long formula for the $F$-statistic for the general linear hypothesis $L \beta = c$, we get
+    $$\frac{(L\widehat{\beta} - c)^\top [L(X^\top X)^{-1} L^\top]^{-1} (L \widehat{\beta} - c)\; /\; (p+1)}{\widehat{\sigma}^2}
+    = \frac{(\widehat{\beta} - \widehat{\beta}_{[i]})^\top (X^\top X) (\widehat{\beta} - \widehat{\beta}_{[i]})}{(p+1) \widehat{\sigma}^2}=: C_i$$
+    which is the quantity from lecture.
+    Why is this not really an $F$-statistic?
+    - The textbook and your lecture notes offer another formula for Cook's distance.
+    $$C_i = \frac{r_i^2}{p+1} \cdot \frac{h_i}{1 - h_i}.$$
+    **Exercise:** show that both formulas are the same.
+
+For #3 on the homework, you may use `lm()` to compute familiar quantities (residuals, fitted values),
+but please use them to manually compute the new quantities (std. residuals, pred. residuals, std. pred. residuals, Cook's distance).
+You may use R functions to check that your computations are correct.
+
+
+# Examples in simple regression
+
+```{r echo=F}
+MakePlots <- function(x, y) {
+  n <- length(x)
+  
+  plot(x, y, xlab="x", ylab="y")
+  mod <- lm(y ~ x)
+  abline(coef(mod)[1], coef(mod)[2])
+  fit <- fitted(mod)
+  points(x, fit, pch=2, cex=0.5)
+  
+  
+  res <- resid(mod)
+  lev <- hat(as.matrix(cbind(1, x)))
+  plot(1:n, lev, xlab="index", ylab="leverage", ylim=c(0,1))
+  
+  plot(fit, res, xlab="fitted", ylab="residual")
+  abline(h=0, lty=2)
+  
+  
+  res.std <- rstandard(mod)
+  plot(fit, res.std, xlab="fitted", ylab="std. residuals")
+  abline(h=0, lty=2)
+  
+  res.pred <- res / (1 - lev)
+  plot(fit, res.pred, xlab="fitted", ylab="pred. residuals")
+  abline(h=0, lty=2)
+  
+  
+  res.stdpred <- rstudent(mod)
+  plot(fit, res.stdpred, xlab="fitted", ylab="std. pred. residuals")
+  abline(h=0, lty=2)
+  
+  
+  cook <- cooks.distance(mod)
+  plot(1:n, cook)
+}
+```
+
+
+
+```{r fig.width=3, fig.height=4, fig.show='hold'}
+x <- c((-4):4, 20)
+n <- length(x)
+p <- 1
+y <- x + 1 + rnorm(n, sd=0.5)
+y[n] <- 0
+MakePlots(x, y) # custom function that I wrote
+```
+
+
+```{r fig.width=3, fig.height=4, fig.show='hold'}
+y[n] <- x[n] + 1 + rnorm(1, sd=0.5)
+MakePlots(x, y)
+```
+
+
+
+```{r fig.width=3, fig.height=4, fig.show='hold'}
+x <- c((-4):4)
+n <- length(x)
+p <- 1
+y <- x + 1 + rnorm(n, sd=0.5)
+y[n/2+1] <- 10
+MakePlots(x, y)
+```
+
+# Testing for outliers
+
+**Read 11.3.1 in Fox.**
+
+[XKCD: Significant](https://xkcd.com/882/)
+
+<img src="significant.png" width=500px />

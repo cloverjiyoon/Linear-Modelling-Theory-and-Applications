@@ -1,0 +1,570 @@
+---
+title: "151AHW3"
+author: "Jiyoon Clover Jeong"
+date: "10/13/2017"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(xtable)
+library(car)
+library(ggplot2)
+
+
+
+multiplot <- function(..., plotlist=NULL, file, cols=1, layout=NULL) {
+  library(grid)
+
+  # Make a list from the ... arguments and plotlist
+  plots <- c(list(...), plotlist)
+
+  numPlots = length(plots)
+
+  # If layout is NULL, then use 'cols' to determine layout
+  if (is.null(layout)) {
+    # Make the panel
+    # ncol: Number of columns of plots
+    # nrow: Number of rows needed, calculated from # of cols
+    layout <- matrix(seq(1, cols * ceiling(numPlots/cols)),
+                    ncol = cols, nrow = ceiling(numPlots/cols))
+  }
+
+ if (numPlots==1) {
+    print(plots[[1]])
+
+  } else {
+    # Set up the page
+    grid.newpage()
+    pushViewport(viewport(layout = grid.layout(nrow(layout), ncol(layout))))
+
+    # Make each plot, in the correct location
+    for (i in 1:numPlots) {
+      # Get the i,j matrix positions of the regions that contain this subplot
+      matchidx <- as.data.frame(which(layout == i, arr.ind = TRUE))
+
+      print(plots[[i]], vp = viewport(layout.pos.row = matchidx$row,
+                                      layout.pos.col = matchidx$col))
+    }
+  }
+}
+```
+
+
+#1 Ant Colonies
+
+
+
+```{r}
+
+
+
+ant <- read.table(file="/Users/cloverjiyoon/2017Fall/Stat 151A/HW/HW3/thatch-ant.dat.txt", header=T, sep = ",")
+head(data)
+
+ant <- na.omit(ant)
+
+ant$Headwidth..mm. <- NULL
+
+
+ant <- ant[ant$Colony %in% c("1","2","3","4","5","6"),]
+ant$Colony <- as.factor(ant$Colony)
+
+```
+
+
+## (a)
+
+```{r}
+
+
+
+ggplot(ant,aes(x=Distance))+geom_histogram(binwidth =1)+facet_grid(~Colony)+theme_bw() + labs(title = "Distance distribution by Colony") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
+
+Colony 1 sends large amount of ants to Distance '4' while Colony 2 and 3 sends equal amounts of ants to each distance. The graph suggests that colony 2 and 3 ahs similar Distance distributions. Colony 4 and 6 like to keep workers near and Colony 5 never send their works far away.
+
+
+```{r}
+
+ant$Size.class <- factor(ant$Size.class, levels = c("<30", "30-34","35-39","40-43",">43"))
+
+ggplot(ant,aes(x=Size.class))+
+  geom_bar(aes(y = ..count..))+facet_grid(~Colony)+theme_bw() + labs(title = "Size.class distribution by Colony") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+```
+
+I will define size 1 : <30
+              size 2 : 30-34
+              size 3 : 35 - 39
+              size 4 : 40 - 43
+              size 5 : >43
+              
+Colony 1 and 4 have the similar distribution of ant's size since they have huge amounts of size 4 workers. Colony 2 and 6 also have the similar distribution since they have more big size workers than the small size workers. Colony 3 and 5 also have a smiliar distribution but colony 5 has more size 4 workers.
+
+
+
+```{r}
+
+
+ggplot(ant,aes(x=Headwidth))+
+  geom_histogram(binwidth = 0.8, aes(y = ..count..))+ facet_grid(~Colony)+theme_bw() + labs(title = "Headwidth distribution by Colony") + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+```{r}
+# ggplot(ant[ant$Colony == "1",],aes(x=Distance))+geom_histogram(binwidth =1)+theme_bw() + labs(title = "Distance distribution by Colony")
+
+
+ ggplot(data = ant, aes(x=Colony, y = Mass)) + geom_boxplot() + geom_point(aes(y=Mass, x=Colony, color=Colony), shape =1 ) +  labs(x="Colony", title="Boxplot of 6 Colonies vs Mass")
+
+```
+
+
+
+ 
+ 
+```{r}
+ 
+ggplot(data = ant, aes(x=Colony, y = Headwidth))+ geom_boxplot() + geom_point(aes(x=Colony, y=Headwidth), shape=1) + geom_jitter(width = 0.01, height = 0.1, aes(colour = Colony)) + labs(x="Colony", title="Boxplot of 6 Colonies vs Headwidth") 
+
+
+
+coplot( Headwidth ~ Mass | Colony, data=ant, rows=1)
+
+
+
+coplot(Headwidth ~ Distance | Colony, data = ant, rows= 1)
+
+
+
+pairsgraph <- sapply(levels(ant$Colony), function(x) {
+  pairs(subset(ant, Colony == x, select=-Colony),
+        panel=panel.smooth, main= paste("Colony", x, "pairs plot"))
+})
+
+```
+
+
+
+## (b)
+
+```{r}
+
+ant$Distance <- as.factor(ant$Distance)
+
+
+# Q: add intercept??
+fullfit <- lm(Mass ~. -1, data=ant)
+summary(fullfit)
+
+fullfitR2 <- round(x=summary(fullfit)$adj.r.squared, digits=5)
+
+
+cat("Adjusted R^2 for model including all variables in ant data is ", fullfitR2, "\n")
+
+
+#smallfit <- lm(Mass ~ 0 + Colony + Size.class + Distance, data=ant)
+
+smallfit <- lm(Mass ~ Colony + Size.class + Distance -1, data=ant)
+summary(smallfit)
+
+
+smallfitR2 <- round(x=summary(smallfit)$adj.r.squared, digits=5)
+cat("Adjusted R^2 for model only including variable Colony, Distance, and Size.class in ant data is ", smallfitR2, "\n")
+
+
+# check if adding headwidth is appropriate
+smallfit2 <- lm(Headwidth ~  Colony + Size.class + Distance -1, data=ant)
+summary(smallfit2)
+
+
+# Q
+smallfit3 <- lm(Headwidth + I(Headwidth^2) ~ . -1, data=ant[, -3])
+summary(smallfit3)
+
+# smallfit3 <- lm( I(Headwidth^2) ~ . -1, data=ant[, -c(3,5)])
+# summary(smallfit3)
+
+
+
+fullfit2 <- lm(Mass ~ . -1 + I(Headwidth^2), data=ant)
+summary(fullfit2)
+
+fullfit2R2 <- round(summary(fullfit2)$adj.r.squared, 5)
+
+
+# check removing Headwidth..mm. is appropriate
+fullfit3 <- lm(Mass~ Colony + Distance + Headwidth + Size.class, data = ant)
+summary(fullfit3)$adj.r.squared
+summary(fullfit)$adj.r.squared
+
+
+
+
+cat("Adjusted R^2 for model including variable Colony, Distance, and Size as well as variable 'Headwidth^2' in ant data is ", fullfit2R2, "\n", "This is bigger than Adjusted R^2 for model including variable Colony, Distance, and Size.class which is ", fullfitR2, "\n")
+
+  
+
+```
+
+Since the modified model including Colony, Distance, size, and Headwidth^2 has the highest adjusted R^2 value, I conclude that this transformation gives us more accurate fit. Also, from the code above, we can see that removing Headwidth..mm. variable is not a good idea since the adjusted R^2 becomes around 0.7 (Originall around 0.9).  
+
+
+## (b) Visualization - graphical techniques
+
+```{r}
+
+
+plot(fullfit)
+
+
+
+data <- data.frame(X=ant$Headwidth, Y=fullfit$residuals)
+                      
+
+ggplot(data,aes(x=X,y=Y)) + geom_point(shape=1) +
+  stat_smooth(method="loess", se=FALSE, color='red', lty=2) +
+  stat_smooth(method="lm", se=FALSE, color='blue', alpha=0.65) +
+  labs(x="Headwidth",  y="Residuals of Full model",
+       title="Full model Residuals vs Headwidth")
+
+
+
+
+
+
+
+# Added variable plot / partial regression plot - Headwidth
+
+# smallfit2 <- lm(Headwidth ~  Colony + Size.class + Distance -1, data=ant)
+# smallfit <- lm(Mass ~ Colony + Size.class + Distance -1, data=ant)
+
+data <- data.frame(X=smallfit2$residuals, Y=smallfit$residuals)
+
+ggplot(data, aes(x=X,y=Y)) + geom_point(shape=1) +
+  stat_smooth(method="loess", se=FALSE, color='red', lty=2) +
+  stat_smooth(method="lm", se=FALSE, color='blue') +
+  labs(x="Headwidth residual from small Model",
+       y="Small model's residuals",
+       title="Added variable plot for Headwidth")
+
+avPlot(fullfit, variable = "Headwidth")
+
+
+#high leverage points
+X <- model.matrix(Mass~., data= ant)
+H <- X %*% solve(t(X) %*% X) %*% t(X)
+  
+lev.sorted <- sort(diag(H), decreasing=T, index.return=T)
+rownames(ant)[lev.sorted$ix[1:3]]
+
+ant_minus <- ant[-lev.sorted$ix[1:3],]
+mod_del <- lm(Mass ~. , data=ant_minus)
+coef(mod_del)
+
+avPlot(mod_del, variable = "Headwidth")
+
+crPlot(fullfit, "Headwidth")
+
+crfit <- lm(Mass ~. + I(Headwidth^2), data = ant)
+
+crPlot(crfit, "I(Headwidth^2)")
+
+
+
+
+```
+
+
+As we can see the smallfit and fullfit of the R^2 values from summary, I conclude that adding Headwidth^2 leads to a good fit. After that, I also checked it with added variable plot and component plus residual plot and the plots shows almost perfect linearity in both cases. Therefore, I conclude that we have to add Headwidth^2 variable as well as Colony, Distance, Headwidth, and Size.class in order to get a good lm fit.
+
+
+
+## (c) Interpret the coefficients relative to the scientific contributions and discuss what conclusions you can draw.
+
+
+```{r}
+
+summary(fullfit2)
+
+
+for(i in 1:6){
+  col1 <- ant[ant$Colony == i,]
+  col1fit <- lm(Mass ~ Distance + Headwidth + Size.class, data = col1)
+  cat("Summary statistics for Colony", i)
+  print(summary(col1fit))
+}
+
+
+```
+The coefficient of colony-level contribution is almost indifferent as the mean(coefficients of Colony 1 ~ 6) are similar(all around 160).
+The sign of Distance1 ~ 10 and Headwidth are negative and it means variable Mass and Distance and Headwidth are inversely proportional to each other. Since the definition of variable Mass is 'How much the ant weighed in milligrams' and it related to how much food (energy) the ant was carrying, it suggests that ants prefer **energy conservative** strategy **generally**.(Distant goes up ---> Mass goes down)
+
+However, if we see the 6 summary statistics above by Colony, it suggests different information. The Distance variable has positive coefficient in Colony 4 except 'Distance 10'. It potentially indicates that **Colony 4 tends to choose worker conservative strategy** except when woker ants are not seriously far away (Distance 10)
+
+Therefore, I conclude that Colony 4 prefers worker conservative strategy and other colonies prefer energy conservative strategy.
+
+
+
+# 3. Bodyfat
+
+
+## (a) Residuals against fitted values.
+
+```{r}
+
+bodyfat <- read.csv("/Users/cloverjiyoon/2017Fall/Stat 151A/Lab/Lab3/bodyfat.csv")
+
+
+# fitting linear model and getting diagnostics
+fit = lm(bodyfat~ Age + Weight + Height + Thigh, data = bodyfat)
+
+
+
+ggplot(data.frame(fitted_values = fit$fitted.values, residuals =fit$residuals), aes(x = fitted_values, y = residuals)) + geom_point(cex = 0.9) + labs(title = "Risiduals vs Fitted") + geom_smooth() + geom_text(aes(label=names(fit$residuals)),hjust=0, vjust=0, cex = 1.8)
+
+```
+
+The residuals vs fitted values plot shows that the possibilites of being outliers for bottom left points on the graph. Since the loess line in the graph is almost a straight line until it reaches to the 42th elements in the graph, probably 42th and 39th elements can be an outliers.
+
+## (b) Standardized Residuals against fitted values.
+
+```{r}
+
+n = nrow(bodyfat)
+p = 4
+  
+X <- as.matrix(cbind(1,bodyfat[,c(3,4,5,10)]))
+H <- X %*% solve(t(X) %*% X) %*% t(X)
+
+RSS <- sum(fit$residuals^2)
+
+std_residual <- fit$residuals / ( sqrt(RSS/ (n-p-1)) * sqrt(1-diag(H)))
+
+
+
+ggplot(data.frame(fitted_values = fit$fitted.values, Std_residual =std_residual), aes(x = fitted_values, y = std_residual)) + geom_point(cex = 0.9) + labs(title = "Standardized Risiduals vs Fitted") + geom_smooth() + geom_text(aes(label=names(std_residual)),hjust=0, vjust=0, cex = 1.8)
+
+
+```
+
+This graph looks similar as the residual vs fitted values plot as shown previously. Still 42th and 39th elements look like outliers
+
+
+## (c) Residuals against Standardized Residuals.
+
+```{r}
+
+
+ggplot(data.frame(residual= fit$residuals, Std_residual =std_residual), aes(x = residual, y = std_residual)) + geom_point(cex = 0.9) + labs(title = "Risiduals vs Standardized Risiduals") + geom_smooth() + geom_text(aes(label=names(std_residual)),hjust=0, vjust=0, cex = 1.8)
+
+```
+
+From Residuals against Standardized Residuals plot, we can also see that 39th and 42 elements are not on the loess line unlike the other points.
+
+
+## (d) Predicted residuals against fitted values.
+
+$$\hat{e_{[i]}} = \frac{\hat{  e_{i} }}{1 - h_{i}} $$
+
+
+
+```{r}
+
+predict_residuals <- fit$residuals / (1- diag(H))
+
+
+
+ggplot(data.frame(predict_residual= predict_residuals, fitted_values =fit$fitted.values), aes(x = fitted_values, y = predict_residual)) + geom_point(cex = 0.9) + labs(title = "Predicted Risiduals vs fitted values") + geom_smooth() + geom_text(aes(label=names(predict_residuals)),hjust=0, vjust=0, cex = 1.8)
+
+```
+
+
+
+This graph looks similar as the residual vs fitted values plot as shown previously. Still 42th and 39th elements look like outliers.
+
+## (e) Residuals against predicted residuals.
+
+```{r}
+
+
+ggplot(data.frame(predict_residual= predict_residuals, residual =fit$residuals), aes(x = predict_residual, y = residual)) + geom_point(cex = 0.9) + labs(title = "Residuals VS predicted residuals") + geom_smooth() + geom_text(aes(label=names(predict_residuals)),hjust=0, vjust=0, cex = 1.8)
+
+
+```
+
+
+
+
+## (f) Residuals against leverage.
+
+```{r}
+
+ggplot(data.frame(residual= fit$residuals, leverage = diag(H)), aes(y = residual, x = leverage)) + geom_point(cex = 0.4) + labs(title = "Residuals VS leverage") + geom_smooth() + geom_text(aes(label=names(fit$residuals)),hjust=0, vjust=0, cex = 1.9)
+
+
+
+```
+
+Let's remove 42th and 39th elements.
+
+
+```{r}
+
+
+ggplot(data.frame(residual= fit$residuals[-c(42,39)], leverage = diag(H)[-c(42,39)]), aes(y = residual, x = leverage)) + geom_point(cex = 0.9) + labs(title = "Residuals VS leverage") + geom_smooth() 
+
+
+```
+
+
+## (g) Predicted residuals against Standardized Predicted Residuals.
+
+```{r}
+
+
+# Q : why different? 
+
+RSS_i <- sum(fit$residuals^2) - (fit$residuals)^2/(1-diag(H))
+
+std_predict_residuals <- (predict_residuals * sqrt(1 - diag(H))) / 
+  sqrt( RSS_i / (n - p - 2))
+
+
+
+# Check
+
+rstudent(fit)
+std_predict_residuals
+
+rstandard(fit)
+std_residual
+ 
+head(fit$residuals / (1- diag(H)))
+head(predict_residuals)
+
+
+ggplot(data.frame(predicted_residual= predict_residuals, std_predict_residuals = std_predict_residuals), aes(y = predicted_residual, x = std_predict_residuals)) + geom_point(cex = 0.9) + labs(title = "Predicted residuals VS Standardized Predicted Residuals") + geom_smooth() + geom_text(aes(label=names(predict_residuals)),hjust=0, vjust=0, cex = 1.8)
+
+```
+
+
+
+## (h) Standardized residuals against Standardized Predicted residuals.
+
+```{r}
+
+ggplot(data.frame(standardized_residuals= std_residual, std_predict_residuals = std_predict_residuals), aes(y = standardized_residuals, x = std_predict_residuals)) + geom_point(cex = 0.9) + labs(title = "Standardized residuals VS Standardized Predicted residuals") + geom_smooth() + geom_text(aes(label=names(std_residual)),hjust=0, vjust=0, cex = 1.8)
+
+```
+
+
+## (i) Cooks Distance against the ID number of the subjects.
+
+```{r}
+
+cook <- std_residual^2 * diag(H) / ((1-diag(H) * (p+1)))
+
+ggplot(data.frame(cook= cook, ID = 1:length(cook)), aes(y = cook, x = ID)) + geom_point(cex = 0.9) + labs(title = "Cooks Distance VS the ID number of the subjects") + geom_smooth() + geom_text(aes(label=names(std_residual)),hjust=0, vjust=0, cex = 1.8)
+
+```
+
+Obviously we can see that 39th and 42 elements are far away from the clouds and 216th elements are a bit off from clouds also.
+
+
+
+
+## (j) Comment on these plots. Based on these plots, assess whether there are any outliers in the dataset; are there any infuential observations.
+
+As shown above, these plots suggests some potential outliers and infuential points(42th, 39th elements). 
+
+First plot : The plot shows that 39th, 41th, 42th, and 216th elements are away from clouds and this observations potentially lead to poor fit.
+
+Second plot: The plot also gives us the similar intuition as the first plot and indicates potential outlier which is 36th element.
+
+Third plot: 42th and 39th elements are not on a loess line and it suggests that the difference between their residuals and standardized residuals is huge. ---> potential unusal leverage
+
+Fourth plot & Fifth plot : The plot also indicates that 39th and 42th elements have unusual leverage.
+
+Sixth plot: The plot shows that 216th, 239th, 39th, and 42th elements have high leverage. Since $\sum_{i}{h_i} = p$ and the average leverage is p/n =  0.01587302, the high leverage points can be the one which have 2p/n leverage. The list below is the elements with high leverage.
+
+```{r}
+match(diag(H)[diag(H) > 2*p/n], diag(H))
+
+```
+
+As we assumed previously, 39th, 41th, 42th, and 216th elements have high leverage. The other elements listed above are not necessarily exact outliers since leverage doesn't take reponses into account.
+
+
+Seventh and Eighth plots: 39th and 42th elements are far away from the loess line and from the cloud(other points). 
+
+Ninth plot: The plot shows that 216th, 39th, and 42th elements have unusual Cook's distance.
+
+
+We can confidently determine that 39th and 42th element as outliers and influential points.  Also, 15th,  29th,  39th,  41th,  42th,  72th,  79th,  96th, 108th, 147th, 152th, 169th, 203th, 216th, 239th, 242th, 243th, and 252th elements can be potential outliers or influential points.
+
+
+
+## (k)  For each subject, calculate the p-value for testing whether the ith subject is an outlier based on the standardized predicted residual. Plot these p-values against the ID number of the subjects. How may of these p-values are less than 0.05? Does it make sense to rule all such subjects as outliers?
+
+```{r}
+
+
+pval = sapply(std_predict_residuals, function(t) (pt(abs(t), n-p-2, lower.tail = F))*2)
+
+ggplot(data = data.frame(ID = 1:length(pval), y = pval), aes(x = ID, y = pval)) + geom_col() + labs(title = "Pval VS ID")
+
+pval[pval <0.05]
+
+
+```
+
+
+
+This suggests 3th, 5th, 28th, 36th, 81th, 138th, 192th, 207th, 208th, and 216th as outliers and it's incorrect since each tests for each elements assume that there is 5% chance of being an outlier even when it is not. As we are doing 252 tests for each elements, it is expected that we can see as many as 13(n* 0.05) outliers even when there is no  true outliers.
+
+We can use Bonferroni correction to solve this issue by setting alpha = 0.05/n. However, since this correction doesn't give any outlier in this case since it is overly conservative.
+
+```{r}
+pval[pval <0.05/n]
+
+```
+
+From the information that we shown, we can conclude that 39th and 42th elements are outliers and can be removed.
+
+## (l) Based on the analysis, does it make sense to fit the linear model with any of the subjects removed? If not, why not? If so, which ones; and in this case, report the summary for the linear model with the subjects removed.
+
+
+
+```{r}
+
+summary(fit)
+
+bodyfat2 = bodyfat[-c(39,42), ]
+summary(lm(bodyfat ~ Age + Weight + Height + Thigh, data = bodyfat2))
+
+```
+
+
+Since F statistics increased after we removed two points that we determined as outliers, I believe it is better to fit the model without these two observations(39th and 42th elements). 
+
+
+```{r}
+
+
+
+```
+
+
+
+```{r}
+
+
+
+```
+
+

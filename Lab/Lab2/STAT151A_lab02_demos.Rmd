@@ -1,0 +1,314 @@
+---
+title: "Lab 2"
+author: "Billy Fang"
+date: "Sep. 8, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Dummy variables
+
+<center>![](dummies.jpg)</center>
+
+> I highly recommend you read Chapter 7 (of the Fox textbook, not _Statistics for Dummies_) if you want more detail about dummy variable regression.
+
+#### Recap for quantitative variables
+
+```{r}
+# you may need to install the "reshape2" package
+data(tips, package="reshape2")
+head(tips)
+```
+
+Let us use this concrete example to understand exactly what $y$ and $X$ are.
+Suppose we consider `tip` as the response variable,
+and `total_bill` and `size` as the explanatory variables.
+
+$y$ is the vector with the tip values.
+
+```{r}
+y <- tips$tip
+y
+length(y)
+```
+
+The design matrix $X$ simply contains the columns of the explanatory variables,
+along with an intercept.
+
+
+```{r}
+X <- cbind(1,tips[, c("total_bill", "size")])
+head(X)
+dim(X)
+```
+
+So in general, each row of $X$ represents one data point.
+Each column of $X$ represents a variable in the model (or the intercept).
+The matrix multiplication $X \beta$ will take each data point (row of $X$)
+and compute a linear combination of the variables using coefficients $\beta_0,\ldots, \beta_p$.
+
+Now we can hypothetically do all the computations you have seen in lecture and on homework:
+solve the normal equation $X^\top X \hat{\beta} = X^\top y$, etc.
+
+```{r}
+X <- as.matrix(X)
+beta <- solve(t(X) %*% X, t(X) %*% y)
+beta
+```
+
+Let's just check that we get the same result as the Great `lm()`.
+
+```{r}
+lm(tip ~ total_bill + size, data=tips)
+```
+
+#### Categorical variables
+
+What about categorical variables?
+[Represented as `factor`s in R.]
+```{r}
+class(tips$tip)
+class(tips$size)
+class(tips$sex)
+```
+
+Let's check what values the categorical variables take, called `levels` in R. I also refer to them as categories.
+
+```{r}
+levels(tips$sex)
+levels(tips$smoker)
+levels(tips$day)
+levels(tips$time)
+```
+
+How can we use these variables in a linear model?
+Let's offer our full dataset (with categorical variables) to the Almighty `lm()` and accept its blessing blindly,
+in the hope that we may become enlightened.
+
+```{r}
+lm(tip ~ ., data = tips) # the period tells lm() to use all other variables as explanatory variables
+```
+
+What are all these things? Why is there a coefficient for each level of each categorical variable?
+Actually one level is missing for each categorical variable?
+
+
+#### Dichotomous factor (a categorical variable that has two categories)
+
+[See Section 7.1 of Fox.]
+
+Let's try to form the design matrix naïvely.
+
+```{r}
+X <- cbind(1, tips[,c("total_bill", "size", "sex")])
+head(X)
+```
+
+Unfortunately,
+despite what we learn in sex ed, we can't actually multiply or add using sex.
+
+Maybe we can replace `Male` with $1$ and `Female` with $0$. (Or vice versa.)
+
+```{r}
+tips$sex
+as.numeric(tips$sex) - 1
+as.numeric(tips$sex == "Male")
+sex <- as.numeric(tips$sex) - 1
+```
+
+Let's make our design matrix again.
+
+```{r}
+X <- cbind(1, tips[,c("total_bill", "size")], sex)
+head(X)
+```
+
+Let's do the linear regression manually and with `lm()`.
+
+```{r}
+X <- as.matrix(X)
+beta <- solve(t(X) %*% X, t(X) %*% y)
+beta
+lm(tip ~ total_bill + size + sex, data=tips)
+```
+
+Great, so this is what `lm()` is doing too.
+
+Let us understand exactly what kind of model we are fitting when we encode `sex` in this way.
+
+Our model looks like
+$$Y = \beta_0 + \beta_1 X_1 + \beta_2 X_2 + \beta_3 D + \epsilon_i$$
+where $X_1$ and $X_2$ are `total_bill` and `size`, while $D$ takes on values $0$ and $1$ for `Female` and `Male` respectively.
+
+We can view this as two models, one for each gender.
+For `Female`,
+$$Y = \beta_0 + \beta_1 X_1 + \beta_2 X_2 + \epsilon_i,$$
+and for `Male`,
+$$Y = (\beta_0 + \beta_3) + \beta_1 X_1 + \beta_2 X_2 + \epsilon_i.$$
+
+**So, by encoding the genders as a $0$-$1$ variable, we are saying that there is a constant difference of $\beta_3$ between the average tips received between the two genders, holding the other variables fixed. If you were to plot these functions (ignoring the noise), the graphs would be two parallel planes that differ only in their intercept.**
+
+For dichotomous factors, we can encode using other things (e.g., $1$ and $2$ instead of $0$ and $1$) without much repercussions, but $0$-$1$ coding is more natural and interpretable.
+Howeveer, we have to be careful when we move to polytomous factors.
+
+
+#### Polytomous factors (categorical variables that take more than two variables)
+
+[See Section 7.2 of Fox.]
+
+Again let us naïvely construct our design matrix.
+```{r}
+levels(tips$day)
+X <- cbind(1, tips[,c("total_bill", "size", "day")])
+X[70:100,]
+```
+
+For dichotomous factors, we simply replaced the categories with the numbers $0$ and $1$.
+Here, we have four levels What if we just use $0$, $1$, $2$, and $3$?
+
+We need to consider what that model would be.
+$$Y = \beta_0 + \beta_1 X_1 + \beta_2 X_2 + \beta_3 D + \epsilon.$$
+Then the models for the four days of the week are
+\begin{align}
+Y &= \beta_0 + \beta_1 X_1 + \beta_2 X_2 + \epsilon
+\\
+Y &= (\beta_0 + \beta_3) + \beta_1 X_1 + \beta_2 X_2 + \epsilon
+\\
+Y &= (\beta_0 + 2\beta_3) + \beta_1 X_1 + \beta_2 X_2 + \epsilon
+\\
+Y &= (\beta_0 + 3 \beta_3) + \beta_1 X_1 + \beta_2 X_2 + \epsilon
+\end{align}
+
+We have thus imposed some sort of ordering on the categories, which is undesirable.
+
+For dummy coding, we will view each category as a binary vector of length $4-1=3$.
+`Fri` will be represented by $(0,0,0)$,
+`Sat` by $(1,0,0)$,
+`Sun` by $(0,1,0)$,
+and `Thur` by $(0,0,1)$.
+In terms of the design matrix, this amounts to replacing the `day` column of our naïve design matrix with _three columns_,
+with entries according to the above coding scheme.
+
+Let us try to justify the use of the coding scheme.
+Having added new binary variables $D_3, D_4, D_5$, our model is
+$$Y = \beta_0 + \beta_1 X_1 + \beta_2 X_2 + \beta_3 D_3 + \beta_4 D_4 + \beta_5 D_5,$$
+and the four models for `Fri`, `Sat`, `Sun`, and `Thu` respectively are
+\begin{align}
+Y &= \beta_0 + \beta_1 X_1 + \beta_2 X_2 + \epsilon
+\\
+Y &= (\beta_0 + \beta_3) + \beta_1 X_1 + \beta_2 X_2 + \epsilon
+\\
+Y &= (\beta_0 + \beta_4) + \beta_1 X_1 + \beta_2 X_2 + \epsilon
+\\
+Y &= (\beta_0 + \beta_5) + \beta_1 X_1 + \beta_2 X_2 + \epsilon
+\end{align}
+Thus $\beta_3$ represents the constant difference between an average tip on `Sat` and one on `Fri`, holding all other variables fixed; $\beta_4$ and $\beta_5$ represent constant differences relative to `Fri` as well.
+Geometrically, the graphs of these four models are parallel planes with different intercepts.
+
+Note that the choice of which level gets encoded by the zero vector is arbitrary, but it establishes which level of the categorical random variable will be the "default" against which the the other level of the variable are compared; permuting the encoding will change the meaning/interpretation of the least squares coefficients.
+
+Let us make our design matrix now.
+[Code adapted from [Michael Tong's note on Piazza](https://piazza.com/class/j6vhrjmd6yp6fh?cid=14).]
+
+```{r}
+
+X <- cbind(1, tips[,c("total_bill", "size")])
+
+lev <- levels(tips$day)
+num <- length(lev)
+names <- colnames(X)
+
+for (i in 2:num) {
+  X <- cbind(X, tips$day == lev[i])
+}
+colnames(X) <- c(names, lev[2:num])
+X <- as.matrix(X)
+X[70:100,]
+```
+Let's check that it matches what `lm()` does.
+
+```{r}
+beta <- solve(t(X) %*% X, t(X) %*% y)
+beta
+lm(tip ~ total_bill + size + day, data=tips)
+```
+
+
+Why did we not use the "one-hot" encoding of $(1,0,0,0)$, $(0,1,0,0)$, $(0,0,1,0)$, and $(0,0,0,1)$ (thus introducing four new variables to represent `day`)?
+Then if you go through and write down the model for each `day`, we will have intercepts
+$\beta_0 + \beta_3$, $\beta_0 + \beta_4$, $\beta_0 + \beta_5$, and $\beta_0 + \beta_6$.
+Here we have $5$ coefficients trying to specify $4$ intercepts, so there are multiple ways to represent a certain model,
+i.e. the least squares solution will not be unique.
+
+Another way to understand the issue with this encoding is to form the design matrix $X$ with this encoding,
+and note that the last three columns will sum to the first column. Thus $X$ is not full rank, so the least squares solution is not unique.
+
+#### Multiple categorical variables
+
+If you have multiple categorical variables, just do the dummy encoding for each variable.
+This amounts to replacing each categorical variable's column of the data table with $k-1$ columns containing the dummy encoding, where $k$ is the number of levels the variable has
+
+```{r}
+X <- model.matrix(tip ~ . , data=tips) # probably can't use this on homework
+head(X)
+beta <- solve(t(X) %*% X, t(X) %*% y)
+beta
+lm(tip ~ ., data=tips)
+```
+
+#### Multicollinearity/collinearity
+
+A few of you were worried that if you have several categorical variables,
+then many columns will consist of $0$s and $1$s,
+which would make it quite possible for columns to be the same (or more generally, to be linearly dependent).
+
+If this did happen, think about what that means. For example, maybe all male bill payers in the dataset ate on Saturday,
+and no female bill payers ate on Saturday.
+Then from the perspective of the data, the `Male` dummy variable is exactly the same as the `Saturday` dummy variable
+Thus the least squares estimate is not unique (similar to Question 1 on Homework 1).
+
+- If the two variables are truly the same (or more generally, if some variable is a linear combination of other variables),
+you should just drop one variable.
+- Typically that is not the case, and the variables are indeed different, but you just do not have enough data to discriminate between them. Getting more data, if possible, is the preferred remedy.
+
+Note that the issues and suggested remedies above are not intrinsic to dummy variables or categorical variables.
+The same can be said for quantitative data that have perfect collinearity or near collinearity.
+
+See the [Wikipedia page](https://en.wikipedia.org/wiki/Multicollinearity) (in particular the "consequences" and "remedies" sections).
+
+
+#### What if I don't want "parallel" models?
+
+Dummy coding essentially only amounts to changing the intercept term for each level of the categorical variable.
+If we want to have different slopes for each category, we will need interaction terms between the dummy variables and the other variables.
+See Section 7.3 in the textbook for more detail.
+
+#### Categorical variables: nominal or ordinal?
+
+Above, the categorical variables were nominal, i.e. they had no intrinsic order.
+An ordinal variable has a natural ordering (e.g., "unsatisfied", "indifferent", "satisfied"), and
+it may be good to incorporate this ordering into the regeression.
+Sometimes things like "year" or "age" are encoded as `factor`s in the dataset despite obviously being numerical, and it may make a lot of sense to just treat it as a number.
+To convert `factor`s to numerics, you can try `as.numeric()` but you should be careful to check what it is doing.
+
+For instance,
+```{r}
+year <- factor(c("1984", "2017", "1984"))
+as.numeric(year)
+as.numeric(as.character(year))
+```
+
+Sometimes you may want to do the opposite: convert a quantitative variable back into a categorical variable.
+You would need to have a good justification for doing so.
+For sake of demonstration, we convert the `size` variable into a `factor` and then apply `lm()`.
+
+```{r}
+as.factor(tips$size)
+tips$size <- as.factor(tips$size)
+lm(tip ~ ., data=tips)
+```
+
+

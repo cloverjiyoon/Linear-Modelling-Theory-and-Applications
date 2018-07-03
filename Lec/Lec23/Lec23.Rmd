@@ -1,0 +1,237 @@
+---
+title: "151ALec23"
+author: "Jiyoon Clover Jeong"
+date: "11/16/2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+rm(list = ls())
+
+library(DAAG)
+data(frogs)
+help(frogs)
+
+# 212 sites of the Snowy Mountain area of New South Wales, Australia were
+# surveyed.
+# The variables:
+#    pres.abs -- 0/1 indicates whether frogs were found.
+#    easting  -- reference point
+#    northing -- reference point
+#    altitude -- altitude in meters
+#    distance -- distance in meters to nearest extant population
+#    NoOfPools-- number of potential breeding pools
+#    NoOfSites-- number of potential breeding sites within a 2 km radius
+#    avrain   -- mean rainfall for Spring period
+#    meanmin  -- mean minimum Spring temperature
+#    meanmax  -- mean maximum Spring temperature
+
+# We wish to explain frog distribution as a function of the other variables. 
+
+plot(northing ~ easting, data=frogs, pch=c(1,16)[frogs$pres.abs+1],
+     xlab="Meters east of reference point", ylab="Meters north")
+
+# x- and y- axes indicate the location of the sites. Filled points are
+# for sites where frogs were found. Because we are working within a very
+# restricted geographic area, we do not expect that the distribution will
+# change as a function of latitude and longitude. Let's look at the
+# scatterplot for the remaining variables:
+
+pairs(frogs[,4:10], oma=c(2,2,2,2), cex=0.5)
+
+# Q : oma?
+#The scatter plots involving the variables distance and NoOfPools look a little odd. It makes sense to consider transforming them.   
+
+
+```
+
+
+```{r}
+summary(frogs$distance)
+plot(density(frogs$distance))
+plot(density(log(frogs$distance))) 
+summary(frogs$NoOfPools)
+plot(density(frogs$NoOfPools))
+plot(density(log(frogs$NoOfPools))) 
+
+
+```
+
+```{r}
+
+
+#Fit the logistic model:
+frogs.glm0 <- glm(formula = pres.abs ~ altitude + log(distance) +
+                    log(NoOfPools) + NoOfSites + avrain + meanmin + meanmax,
+                  family = binomial, data = frogs)
+# For probit:  binomial(link = "probit")
+# Default link function for binomial is logit
+
+
+
+summary(frogs.glm0)
+
+
+
+
+```
+
+
+$log(\frac{pi}{1-pi}) = X_i^T\beta = \beta_0 + \beta_1x_{i,1} + \beta_2x_{i,2} + ...$
+
+
+```{r}
+#We will try to understand all the numbers in the above output starting with the coefficients. 
+#Fisher Scoring stands for an algorithm that is a minor modification of Newton's method. Essentially in Fisher Scoring, one replaces the Hessian matrix of the log-likelihood function by its expectation. For logistic regression, the Hessian matrix of the log-likelihood function does not involve y and hence for logistic regression, there is no difference between Newton's method (and IRLS or IWLS) and Fisher Scoring. For other generalized linear models, they might be different. 
+names(frogs.glm0)
+frogs.glm0$coefficients
+
+#The GLM coefficients via IRLS or IWLS
+#The estimated beta obtained by the above glm function can also be deduced by manually going through the IRLS iterates (or by writing a for loop).
+p = 7
+#Repeat the following steps. For the first step, take beta_initial = 0.
+#beta_initial = .01^2  *rnorm(p+1)#rep(0, (p+1))
+
+
+
+
+#beta_initial = rep(0, (p+1))
+beta_initial = lmod$coefficients
+n = nrow(frogs)
+Xmat = cbind(frogs$altitude, log(frogs$distance), log(frogs$NoOfPools), frogs$NoOfSites, frogs$avrain, frogs$meanmin, frogs$meanmax) 
+
+pvec = exp(beta_initial[1] + Xmat%*% beta_initial[-1])/(1 + exp(beta_initial[1] + Xmat%*%beta_initial[-1]))
+
+
+
+wts = pvec*(1-pvec)
+yvec = frogs$pres.abs
+Z = log(pvec/(1-pvec)) + (yvec - pvec)/wts  # equation 4 in lecture note
+
+# Q : log 
+
+
+
+
+lmod = lm(Z ~ Xmat, weights = wts)
+cbind(lmod$coefficients, frogs.glm0$coefficients)
+#After a few iterations, the coefficients from this weighted linear model coincide with those given by glm. 
+
+```
+
+
+```{r}
+
+
+#Fitted values in logistic regression
+frogs.glm0$fitted.values
+#These are the estimated probabilities of success. These can be computed from the estimates of the beta coefficients as follows. 
+#Check these fitted values
+i = 45
+rrg = c(1, frogs$altitude[i], log(frogs$distance[i]), log(frogs$NoOfPools[i]), frogs$NoOfSites[i], frogs$avrain[i], frogs$meanmin[i], frogs$meanmax[i])
+#or use model.matrix(frogs.glm0)[i,]
+
+
+eta = sum(rrg*frogs.glm0$coefficients)   # Xi^t * beta
+prr = exp(eta)/(1 + exp(eta))
+#This agrees with frogs.glm0$fitted.values[i]
+c(prr, frogs.glm0$fitted.values[i])
+
+#Deviance  - compare model with and without intercept
+
+#Essentially deviance plays the role of residual sum of squares in logistic regression. 
+deviance(frogs.glm0)
+#or
+frogs.glm0$deviance
+#How is it calculated?
+
+#It equals (-2)*(maximized log likelihood)
+
+#Calculate the maximum value of the log-likelihood
+mll = sum(frogs$pres.abs * log(frogs.glm0$fitted.values)) + sum((1 - frogs$pres.abs)*log(1 - frogs.glm0$fitted.values))
+
+-2*mll
+
+#This is actually called the residual deviance
+
+#This plays the analogous role to Residual Sum of Squares in linear regression. 
+
+#The average of fitted values equals the proportion of ones in the response variable: 
+mean(frogs.glm0$fitted.values)
+mean(frogs$pres.abs)
+
+#What is the null deviance: 
+frogs.glm0$null.deviance
+
+
+#Null deviance is the deviance (-2*max log likelihood) in a model that only has the intercept term
+
+#If the model only has the intercept term, then p_i is the same for each i and it is therefore fitted by the value: 
+ybar = mean(frogs$pres.abs)
+n = nrow(frogs)
+
+#Thus the maximized log-likelihood in the model with only intercept is 
+mll.null = (n*ybar*log(ybar)) + (n*(1 - ybar)*log(1 - ybar))
+-2*mll.null
+#-2*mll.null is the null deviance. 
+
+#The degrees of freedom of the deviances equal (n - #parameters). For example, for the null deviance, the degrees of freedom equal (n-1). And for a model with p explanatory variables, the degrees of freedom for the residual deviance is (n-p-1). 
+
+frogs.glm0$df.residual
+frogs.glm0$df.null
+
+#AIC  = residual deviance + 2*(p+1). Here p equals 7  why???
+frogs.glm0$aic
+frogs.glm0$deviance + 2*8   
+
+#Standard Errors of the Estimates of beta are given by the following.
+Xm = model.matrix(frogs.glm0)
+W = diag(frogs.glm0$fitted.values*(1 - frogs.glm0$fitted.values))
+
+solve(t(Xm) %*% W %*% Xm)
+#The standard errors of the estimates of beta are given by
+(diag(solve(t(Xm) %*% W %*% Xm)))^(1/2)
+summary(frogs.glm0)
+
+se = (diag(solve(t(Xm) %*% W %*% Xm)))^(1/2)
+
+
+###3 Test statistic
+frogs.glm0$coefficients[5]/se[5]
+### pvalues
+2*(1-pnorm( abs(frogs.glm0$coefficients[5])/se[5]))
+2*(pnorm( abs(frogs.glm0$coefficients[5])/se[5], lower.tail = F))
+
+
+summary(frogs.glm0)
+
+#Residuals in Logistic Regression
+#There are many ways of obtaining residuals in logistic regression. 
+
+#The most easy way is to take y - fitted.values. 
+
+#The residuals given in R equal (y - fitted.values)/(fitted.values * (1 - fitted.values)). It turns out that these are the residuals in the final iteration of the IWLS fit. 
+
+res = (frogs$pres.abs - frogs.glm0$fitted.values)/(frogs.glm0$fitted.values*(1-frogs.glm0$fitted.values))
+cbind(frogs.glm0$res, res)
+
+#Plotting the fitted values vs the observed occurences of frogs
+plot(frogs$pres.abs, frogs.glm0$fitted.values)
+
+# Check the unusual points:
+sel <- frogs$pres.abs==0 & frogs.glm0$fitted >.7
+
+# why   frogs.glm0$fitted     starts from 2? 
+
+plot(northing ~ easting, data=frogs, pch=c(1,16)[frogs$pres.abs+1], col=sel+1, xlab="Meters east of reference point", ylab="Meters north") 
+
+# red circle??  , color : sel + 1 ????
+
+sel <- frogs$pres.abs==1 & frogs.glm0$fitted <.2
+plot(northing ~ easting, data=frogs, pch=c(1,16)[frogs$pres.abs+1], col=sel+1, xlab="Meters east of reference point", ylab="Meters north") 
+
+```

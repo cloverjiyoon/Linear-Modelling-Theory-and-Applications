@@ -1,0 +1,175 @@
+---
+title: "STAT 151A Lab 3: What do all these numbers in `lm()` mean?"
+author: "Billy Fang"
+date: "September 15, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+bodyfat <- read.csv("bodyfat.csv")
+head(bodyfat)
+```
+
+Let us model body fat percentage as a linear combination of weight, height, and abdomen.
+
+```{r}
+y <- bodyfat$bodyfat
+X <- cbind(1, bodyfat[, c("Weight", "Height", "Abdomen")])
+p <- 3
+n <- length(y)
+X <- as.matrix(X)
+beta_hat <- solve(t(X) %*% X, t(X) %*% y)
+# check beta_hat
+beta_hat
+
+y_hat <- X %*% beta_hat
+e <- y - y_hat
+y_bar <- mean(y)
+RSS <- sum(e^2)
+RegSS <- sum((y_hat - y_bar)^2)
+TSS <- sum((y - y_bar)^2)
+
+# check if RegSS + RSS = TSS
+RegSS + RSS
+TSS
+
+# check R^2
+R2 <- RegSS / TSS
+R2
+```
+
+```{r}
+fit <- lm(bodyfat ~ Weight + Height + Abdomen, data=bodyfat)
+summary(fit)
+```
+
+
+
+
+
+#### $t$-test for individual coefficients
+
+We showed that under the normal model $y = X\beta^* + \epsilon$
+with $\epsilon \sim N_n(0, \sigma^2 I_n)$,
+the mean of $\hat{\beta}$ is $\beta^*$, and
+the covariance matrix of $\hat{\beta}$ is $\sigma^2 (X^\top X)^{-1}$.
+
+Thus the variance of $\hat{\beta}_j$ is $\sigma^2 v_{jj}$,
+where $v_{jj}$ is the $j$th diagonal element of $(X^\top X)^{-1}$.
+
+Therefore, if we want to test the null hypothesis
+
+$$H_0 : \beta_j^* = \beta_j^{(0)},$$
+then the statistic
+
+$$\frac{\hat{\beta}_j - \beta^*_j}{\sigma \sqrt{v_{jj}}},$$
+
+is standard normal under the null hypothesis $H_0$.
+If we knew $\sigma$, we could do a $Z$-test of this statistic
+with the standard normal distribution, but we typically do not know $\sigma$.
+
+In lecture notes and in lab today, we showed that
+
+$$\frac{e^\top e}{n - p - 1} = \frac{\text{RSS}}{n - p - 1}$$
+is an unbiased estimator of $\sigma^2$,
+so the standard error of $\hat{\beta}_j$ is
+
+$$\sqrt{\frac{e^\top e}{n - p - 1}} \sqrt{v_{jj}}.$$
+
+It turns out (proof omitted) that
+$$t = \frac{\hat{\beta}_j - \beta^*_j}{\sqrt{\frac{e^\top e}{n - p - 1}} \sqrt{v_{jj}}},$$
+follows a $t$-distribution with $n - p - 1$ degrees of freedom.
+Thus you can use this to test the null hypothesis. If $|t|$ is very large,
+then we can reject the null hypothesis.
+
+
+
+`lm()` does a $t$-test for $H_0 : \beta_j^* = 0$ for each $j$.
+Let us manually do this for the `Weight` coefficient.
+We can compute the standard error, $t$-statistic, and p-value.
+
+```{r}
+V <- solve(t(X) %*% X)
+rse <- sqrt(RSS / (n - p - 1))
+rse
+se <- rse * sqrt(V[2, 2])
+se
+t <- beta_hat[2] / se
+t
+pval <- 2 * pt(t, n - p - 1)
+pval
+```
+
+Let's check with `lm()`.
+
+```{r}
+summary(fit)
+```
+
+
+#### $F$-test for all slopes
+
+`lm()` also tests the global null hypothesis that all slopes are zero.
+
+$$H_0 : \beta^*_1 = \beta^*_2 = \cdots = \beta^*_k = 0.$$
+
+Under this null hypothesis, the statistic
+$$F_0 = \frac{\text{RegSS}/p}{\text{RSS}/(n-p-1)}$$
+follows an $F$-distribution with $p$ and $n - p - 1$ degrees of freedom.
+[See Section 6.2.1 of Fox.]
+If $F_0$ is too large, we can reject the null hypothesis.
+
+```{r}
+Fstat <- (RegSS / p) / (RSS / (n - p - 1))
+Fstat
+pval <- 1 - pf(Fstat, p, n - p - 1)
+pval
+```
+
+```{r}
+summary(fit)
+```
+
+#### $F$-test for subset of slopes
+
+Instead of testing for all slopes being zero, we can test for a subset being zero.
+
+$$H_0 : \beta^*_1 = \beta^*_2 = \cdots = \beta^*_q = 0.$$
+
+Let $\text{RSS}_1$, $\text{RegSS}_1$, and $\text{TSS}_1$ be for the full model,
+and let $\text{RSS}_0$, $\text{RegSS}_0$, and $\text{TSS}_0$ be for the null model.
+
+Why are the following true?
+$$\text{RSS}_0 \ge \text{RSS}_1$$
+$$\text{TSS}_0 = \text{TSS}_1$$
+$$\text{RSS}_0 - \text{RSS}_1 = \text{RegSS}_1 - \text{RegSS}_0$$
+$$\text{RegSS}_0 \le \text{RegSS}_1$$
+
+The $F$-statistic to test this null hypothesis is
+$$F = \frac{(\text{RegSS}_1 - \text{RegSS}_0) / q}{\text{RSS}_1 / (n - p - 1)}.$$
+If this is too large, we can reject the null.
+
+[Note that the "all slopes" $F$-statistic is a special case of this one: take $q = p$,
+and note that $\text{RegSS}_0 = 0$.]
+
+Let us test if both weight and abdomen are zero.
+We have already fitted the full model, so we just need to find $\text{RegSS}_0$.
+
+```{r}
+q <- 2
+fit0 <- lm(bodyfat ~ Height, data=bodyfat)
+y_hat0 <- fitted(fit0)
+RegSS0 <- sum((y_hat0 - y_bar)^2)
+RegSS0
+RegSS
+Fstat <- ((RegSS - RegSS0) / q) / (RSS / (n - p - 1))
+Fstat
+pval <- 1 - pf(Fstat, q, n - p - 1)
+pval
+```
+

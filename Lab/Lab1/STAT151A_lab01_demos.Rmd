@@ -1,0 +1,362 @@
+---
+title: "Lab 1"
+author: "Billy Fang"
+date: "Sep. 1, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache=T)
+```
+
+
+# R resources
+
+- [Install R](https://www.r-project.org/)
+- (Optional, but highly recommended) [RStudio](https://www.rstudio.com/) is a popular integrated development environment (IDE) for R. I like to make a separate [RStudio project](https://support.rstudio.com/hc/en-us/articles/200526207-Using-Projects) for each project I am working on, to avoid mixing various working directories, environments, variables, etc.
+- (Optional) [RMarkdown](http://rmarkdown.rstudio.com/lesson-1.html) is a nice way to integrate code with your reports. Can export in many styles (document, slides, interactive notebook) and file formats (HTML, PDF).  This write-up was generated using RMarkdown.
+
+# Body fat dataset
+
+Information about this dataset can be found [here](http://lib.stat.cmu.edu/datasets/bodyfat)
+and [here](http://staff.pubhealth.ku.dk/~tag/Teaching/share/data/Bodyfat.html).
+
+You can access the `bodyfat.csv` file on bCourses or [here](http://staff.pubhealth.ku.dk/~tag/Teaching/share/data/Bodyfat.csv).
+Make sure it is in your current working directory.
+
+
+### Loading the dataset
+
+```{r}
+# make sure .csv file is in your working directory
+bodyfat <- read.csv("bodyfat.csv")
+head(bodyfat)
+```
+
+### What do the numbers mean?
+
+```{r}
+names(bodyfat)
+```
+
+From the [description](http://staff.pubhealth.ku.dk/~tag/Teaching/share/data/Bodyfat.html),
+the data are
+
+> estimates of the percentage of body fat determined by underwater
+> weighing and various body circumference measurements for 252 men.
+
+The variables are
+
+- Density determined from underwater weighing (g/cm^3)
+- Percent body fat from Siri's (1956) equation
+- Age (years)
+- Weight (lbs)
+- Height (inches)
+- Neck circumference (cm)
+- Chest circumference (cm)
+- Abdomen 2 circumference (cm)
+- Hip circumference (cm)
+- Thigh circumference (cm)
+- Knee circumference (cm)
+- Ankle circumference (cm)
+- Biceps (extended) circumference (cm)
+- Forearm circumference (cm)
+- Wrist circumference (cm)
+
+### Histograms and box plots
+
+Histograms and boxplots are good ways to visualize the distribution of the data.
+
+```{r}
+hist(bodyfat$Biceps)
+```
+
+```{r}
+boxplot(bodyfat$Biceps)
+```
+
+Boxplots are good showing outliers.
+Let us find the outlier in the above plot.
+
+
+```{r}
+idx <- which.max(bodyfat$Biceps) # find index of the largest point
+bodyfat[idx, ]
+```
+
+Removing extreme outliers can sometimes help your analysis of the data.
+In this case we do not have much reason to remove this point, since we are only looking at one variable. But in general, if `idx` is a vector containing the row numbers of the datapoints you want to remove, then `bodyfat[-idx,]` will remove those rows.
+
+See Section 3.1 of Fox for more detail about histograms and boxplots
+(in particular, Section 3.1.4 for how box plots are constructed).
+
+### Scatter plots and smoothing
+
+
+Scatter plots can show relationships between two variables.
+
+```{r}
+plot(bodyfat$Biceps, bodyfat$Forearm)
+```
+
+If we want to summarize the relationship between the variables,
+we can always try **locally weighted regression (loess)**.
+In Section 2.3 of Fox,
+they describe a **local averaging** where the value of the
+fitted curve at some $x$ is the average of the $y_i$ values for the datapoints
+$(x_i, y_i)$ near $x$ (hence "local").
+Loess is similar, but at each point $x$ fits a polynomial in a neighborhood of $x$ in such a way that nearby points have more influcence than distant points.
+The function `scatter.smooth` uses loess.
+
+```{r}
+par(mfrow=c(1,2))
+scatter.smooth(bodyfat$Biceps, bodyfat$Forearm, col='gray')
+title("Loess smoothing")
+
+beta <- coef(lm(Forearm ~ Biceps, bodyfat))
+plot(bodyfat$Biceps, bodyfat$Forearm, col='gray')
+abline(beta[1], beta[2])
+title("Linear regression")
+```
+
+In this case the loess fit is essentially a line,
+and it is almost the same as the linear regression fit.
+
+Let us see how loess behaves in other settings.
+
+```{r}
+n <- 10
+x <- seq(-1,1, length.out = n)
+y <- x + rnorm(n, sd=0.5)
+par(mfrow=c(1,2))
+scatter.smooth(x,y)
+abline(0,1, lty=2)
+title("Loess smoothing")
+
+beta <- coef(lm(y ~ x))
+plot(x,y)
+abline(beta[1], beta[2])
+abline(0,1, lty=2)
+title("Linear regression")
+```
+
+Here the data is a noisy realization of a linear relationship (the dotted line).
+Because there are few datapoints, loess tries to fit the data too much. Linear regression seems to do fairly well even with few datapoints.
+
+If we increase the number of data points, loess improves.
+
+```{r}
+n <- 500
+x <- seq(-1,1, length.out = n)
+y <- x + rnorm(n, sd=0.5)
+par(mfrow=c(1,2))
+scatter.smooth(x,y, col='gray')
+abline(0,1, lty=2)
+title("Loess smoothing")
+
+beta <- coef(lm(y ~ x))
+plot(x,y, col='gray')
+abline(beta[1], beta[2])
+abline(0,1, lty=2)
+title("Linear regression")
+```
+
+What happens if the underlying relationship is not linear?
+
+
+
+
+```{r, cache=F}
+n <- 100
+x <- seq(-1,1, length.out = n)
+y <- x^2 + rnorm(n, sd=0.1)
+par(mfrow=c(1,2))
+scatter.smooth(x,y, col='gray')
+lines(x,x^2, lty=2)
+title("Loess smoothing")
+
+beta <- coef(lm(y ~ x))
+plot(x,y, col='gray')
+abline(beta[1], beta[2])
+lines(x,x^2, lty=2)
+title("Linear regression")
+```
+
+
+Of course, a linear fit fails to summarize the data when the true relationship is far from linear. However, loess does a fair job (provided there are enough datapoints).
+
+As we have seen loess can capture more complex relationships.
+However, it requires more datapoints to produce good models.
+Another severe drawback is that the curve it produces is not easily represented by a mathematical formula.
+
+
+Read Section 2.3 of Fox
+
+
+
+
+### Pairs plot
+
+We can visualize all possible scatter plots at once using `pairs`.
+
+```{r fig.width=12, fig.height=12}
+pairs(bodyfat)
+```
+
+
+### Coplot
+
+A **co**plot is a way to visualize the relationship between two variables
+**co**nditioned on a third.
+
+
+Let's do an example where we condition on a categorical variable.
+Since the bodyfat dataset does not have categorical variables,
+we will look at the tips dataset for the moment.
+First, let us observe the relationship between tip amount and the bill total with a scatter plot.
+```{r}
+# you may need to install the "reshape2" package
+data(tips, package="reshape2")
+names(tips)
+plot(tips$total_bill, tips$tip)
+```
+
+We can then separate the datapoints based on the gender of the customer,
+i.e. conditioning on the gender.
+```{r}
+coplot(tip ~ total_bill | sex, data=tips)
+```
+
+We can also condition on two variables. Here we also condition on the meal.
+```{r}
+coplot(tip ~ total_bill | sex * time, data=tips)
+```
+
+
+What happens when we condition on quantitative variables?
+Let us return to the body fat dataset and try to reproduce and interpret the example in the lecture notes.
+First, let us reproduce the pairs plot for three variables: body fat percentage, neck circumference, and abdominal circumference.
+
+```{r}
+pairs(~bodyfat + Neck + Abdomen, data=bodyfat)
+```
+
+Now we reproduce the coplot from the lecture notes.
+We plot the relationship between body fat percentage
+and neck circumference, given abdominal circumference.
+```{r}
+coplot(bodyfat ~ Neck | Abdomen, data=bodyfat)
+```
+
+One major source of confusion with the above plot is that it is unclear which scatter plot corresponds to which range of abdominal circumference.
+According to [this Stack Overflow answer](https://stackoverflow.com/a/14573349),
+it is left to right, then bottom to top.
+
+All the confusion can be avoided if we force the scatter plots to be on one row.
+Now we reproduce the coplot from the lecture notes.
+```{r fig.width=12}
+coplot(bodyfat ~ Neck | Abdomen, data=bodyfat, rows=1)
+```
+This is much clearer. So the first scatter plot contains only data
+from the men in the study with abdominal circumference in the first interval,
+and so on.
+
+By definition,
+the `number` (the number of conditioning intervals)
+and `overlap` (the fraction of overlap of the intervals)
+options of the `coplot()` function are `6` and `0.5` respectively.
+We can play around with the options.
+For example, if we want 8 non-overlapping intervals, we have the following.
+```{r fig.width=12}
+coplot(bodyfat ~ Neck | Abdomen, data=bodyfat, rows=1, number=8, overlap=0)
+```
+
+The pairs plot shows that both neck circumference and abdominal circumference
+seem like good predictors for body fat percentage.
+But the coplots show that if we know the abdominal circumference,
+the neck circumference does not give much more information,
+since each scatter plot in the coplot does not exhibit an obvious trend.
+This was discussed in lecture.
+
+### Working with `lm()`
+
+Let's look at the `bodyfat` vs. `Density` plot.
+
+```{r}
+plot(bodyfat$Density, bodyfat$bodyfat, cex=0.5)
+```
+
+This looks suspiciously linear. Let's try fitting a line.
+
+$$\text{bodyfat} = \beta_1 \text{Density} + \beta_0$$
+
+```{r}
+fit <- lm(bodyfat ~ Density, data=bodyfat)
+summary(fit)
+```
+
+Let us see what we could extract from the model.
+
+```{r}
+names(fit)
+fit$coefficients # alternatively you can use coef(fit)
+head(fit$residuals) # alternatively you can use residuals(fit)
+```
+
+
+```{r}
+plot(bodyfat$Density, bodyfat$bodyfat, cex=0.5)
+abline(coef(fit))
+```
+
+
+Looks like a good fit. However, let's check the residual plot.
+
+```{r}
+plot(bodyfat$Density, residuals(fit), cex=0.5)
+```
+
+Let's remove the more egregious outliers to make the curve more clear.
+
+```{r}
+idx <- which(abs(residuals(fit)) > 1)
+plot(bodyfat$Density[-idx], residuals(fit)[-idx], cex=0.5)
+```
+
+
+Is this good or bad?
+
+We are in a rare situation where we *do* know the relationship between the variables.
+
+From the [description](http://staff.pubhealth.ku.dk/~tag/Teaching/share/data/Bodyfat.html),
+the body fat percentage is actually a function of density!
+
+$$\text{body fat} = \frac{495}{\text{Density}} - 450$$
+
+To see what happens, let us perform linear regression again, but with the correct transformation.
+
+
+$$\text{bodyfat} = \beta_0 + \beta_1 \frac{1}{\text{Density}}$$
+
+```{r}
+plot(1/bodyfat$Density, bodyfat$bodyfat, cex=0.5)
+fitinv <- lm(bodyfat ~ I(1/Density), data=bodyfat)
+coef(fitinv)
+```
+
+This is fairly close to the true coefficients of $-450$ and $495$.
+
+
+The following figure compares the true relationship (solid),
+the linear fit (dashed), and the second fit after the appropriate transformation (dotted).
+If we did not check the residuals of our first fit and stayed with that model, what bad things might happen?
+
+```{r}
+x <- seq(0.8, 1.2, length.out=100)
+plot(x, 495/x - 450, type="l", ylab="body fat", xlab="density")
+points(x, coef(fit)[1] + coef(fit)[2] * x, type="l", lty=2)
+points(x, coef(fitinv)[1] + coef(fitinv)[2] * 1/x, type="l", lty=3)
+```
+
+
+

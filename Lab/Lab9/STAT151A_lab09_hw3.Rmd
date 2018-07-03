@@ -1,0 +1,286 @@
+---
+title: 'STAT 151A: Lab 09, HW 3 Q1'
+author: "Billy Fang"
+date: "October 26, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE, cache=T}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=F}
+library(car)
+library(ggplot2)
+library(reshape2)
+library(dplyr)
+```
+
+These are not meant to be canonical solutions for this homework question,
+but rather a sketch of possible approaches for the purpose of discussion in section.
+
+# Reading/cleaning data
+
+
+```{r}
+dat <- read.csv("thatch-ant.dat.txt")
+head(dat)
+dat <- dat[which(dat$Colony <= 6), ]
+dat <- na.omit(dat)
+dim(dat)
+n <- dim(dat)[1]
+
+unique(dat$Colony)
+unique(dat$Distance)
+unique(dat$Headwidth)
+unique(dat$Headwidth..mm.)
+# plot(dat$Headwidth, dat$Headwidth..mm.)
+
+levels(dat$Size.class)
+# re-order Size.class levels
+dat$Size.class <- factor(dat$Size.class, levels(dat$Size.class)[c(1, 4, 5, 6, 3, 2)])
+
+
+dat$Colony <- as.factor(dat$Colony)
+dat$Distance <- as.factor(dat$Distance)
+dat <- dat[, -5] # remove mm version of headwidth
+```
+
+# Exploratory data analysis
+
+
+
+
+```{r}
+p <- ggplot(dat)
+p + geom_bar(aes(x=Colony)) + ggtitle("Histogram of colony size")
+p + geom_boxplot(aes(x=Colony, y=Mass)) + ggtitle("Boxplots of mass by colony")
+p + geom_boxplot(aes(x=Colony, y=Headwidth)) + ggtitle("Boxplots of head width by colony")
+```
+
+```{r}
+# p + geom_bar(aes(x=Colony, fill=Size.class), position="dodge") + ggtitle("Histograms of size class by colony")
+dat.size.colony <- melt(dcast(dat, Size.class ~ Colony, fun.aggregate=length), id.vars="Size.class", variable.name="Colony", value.name="Count")
+ggplot(dat.size.colony, aes(x=Colony, y=Count, fill=Size.class)) + geom_bar(stat="identity", position=position_dodge(width=0.8), width=0.7) + geom_text(aes(label=Count), position=position_dodge(width=0.8), vjust=-0.5, size=2.5)
+
+
+# p + geom_bar(aes(x=Colony, fill=Distance), position="dodge") + ggtitle("Histograms of distance by colony")
+dat.distance.colony <- melt(dcast(dat, Distance ~ Colony, fun.aggregate=length), id.vars="Distance", variable.name="Colony", value.name="Count")
+ggplot(dat.distance.colony, aes(x=Colony, y=Count, fill=Distance)) + geom_bar(stat="identity", position=position_dodge(width=0.8), width=0.7) + geom_text(aes(label=Count), position=position_dodge(width=0.8), vjust=-0.5, size=2.5)
+```
+
+
+```{r fig.width=10}
+#coplot(Mass ~ Distance | Colony, data=dat, rows=1)
+dat.tmp <- dat %>% group_by(Colony, Distance) %>% mutate(Mass.mean=mean(Mass)) %>% ungroup
+ggplot(dat.tmp, aes(x=as.numeric(as.character(Distance)), y=Mass)) + geom_point(size=0.5) +
+  # geom_smooth(method='loess', se=F, method.args=list(degree=1)) +
+  geom_line(aes(y=Mass.mean), color='blue') +
+  facet_wrap(~Colony, nrow=1) + theme(aspect.ratio=1) +
+  ggtitle("Coplot of Mass ~ Distance | Colony") +
+  xlab("Distance")
+```
+
+```{r}
+p + geom_point(aes(x=Headwidth, y=Mass), size=0.5) + ggtitle("Mass vs. head width")
+# p + geom_point(aes(x=Headwidth, y=Mass)) + facet_wrap(~Colony, nrow=1) + theme(aspect.ratio=1) + ggtitle("Coplot of Mass ~ Headwidth | Colony")
+```
+
+
+# Modeling
+
+When you use `lm` with one categorical explanatory variable,
+what dummy variables are used in the model? What happens when you remove the intercept
+when calling `lm`? What is the answer to the above questions when there are more
+than one categorical explanatory variable? Does the order in which you list the explanatory
+variables matter?
+
+
+- *Default `lm`.* If we do `lm(Mass ~ Colony + Distance + Headwidth + Size.class, data=dat)`,
+then we are implicitly saying that ants in colony $c$, distance $d$, and size class $s$
+follow the model
+$$y = \beta_{\text{intercept}} + \beta_{\text{colony $c$}} + \beta_{\text{distance $d$}} + \beta_{\text{size class $s$}} + \beta_{\text{headwidth}} \cdot \text{headwidth} + \epsilon,$$
+where
+$$\beta_{\text{colony $1$}} = \beta_{\text{distance $0$}} = \beta_{\text{size class $<30$}} = 0.$$
+(Remember the default behavior of `lm` for categorical variables. The only coefficients that appear are $\beta_{\text{intercept}}, \beta_{\text{colony $2$}}, \ldots, \beta_{\text{colony $6$}}, \beta_{\text{distance $1$}}, \ldots, \beta_{\text{distance $10$}},\beta_{\text{size class $30-34$}}, \ldots, \beta_{\text{size class $>43$}}$.)
+- *No intercept `lm`.* If you do `lm(Mass ~ Colony + Distance + Headwidth + Size.class - 1, data=dat)`
+as we do below,
+then we are implicitly saying that ants in colony $c$, distance $d$, and size class $s$
+follow the model
+$$y = \beta_{\text{colony $c$}} + \beta_{\text{distance $d$}} + \beta_{\text{size class $s$}} + \beta_{\text{headwidth}} \cdot \text{headwidth} + \epsilon,$$
+where
+$$\beta_{\text{distance $0$}} = \beta_{\text{size class $<30$}} = 0.$$
+
+
+
+
+
+
+The above sketch considers variations in how you (or `lm`) choose dummy variables
+to encode categorical variables. Note that these changes (intercept or no intercept, etc.)
+will not change the column space of the design matrix, so most things will remain the same
+(fitted values, residuals, RSS, etc.). However, the coefficients $\widehat{\beta}$
+will be different simply because the dummy variables represent different things
+depending on how you encode the categorical variables.
+
+
+
+```{r}
+mods <- list()
+mods <- c(mods, list(lm(Mass ~ Colony + Distance + Headwidth + Size.class - 1, data=dat)))
+# mods <- c(mods, list(lm(sqrt(Mass) ~ Colony + Distance + Headwidth + Size.class - 1, data=dat)))
+mods <- c(mods, list(lm(I(Mass^(0.4)) ~ Colony + Distance + Headwidth + Size.class - 1, data=dat)))
+mods <- c(mods, list(lm(log(Mass) ~ Colony + Distance + Headwidth + Size.class - 1, data=dat)))
+```
+
+```{r fig.width=4, fig.height=4, fig.show='hold'}
+mod <- mods[[1]]
+print(summary(mod))
+fit <- fitted(mod)
+rstud <- rstudent(mod)
+qplot(fit, rstud, size=I(0.5)) +
+  geom_hline(yintercept=0) +
+  xlab("Fitted values") +
+  ylab("Studentized residuals") +
+  geom_smooth(method='loess', se=F, method.args=list(degree=1)) +
+  ggtitle("Studentized residuals vs. fitted values")
+
+qplot(log(fit), log(abs(rstud)), size=I(0.5)) +
+  geom_smooth(method='lm', se=F) + xlab("log fitted values") + ylab("log abs. stud. res.")
+
+coef(lm(log(abs(rstud)) ~ log(fit)))
+```
+
+
+```{r fig.show="hold", fig.width=4}
+for (mod in mods) {
+  fitted <- fitted(mod)
+  rstud <- rstudent(mod)
+  # print(summary(mod))
+  # dat.mod <- cbind(dat, Fitted=fitted(mod), Stud.Res=rstudent(mod))
+  # print(
+  #   qplot(qt((1:n) / (n+1), df.residual(mod)), sort(dat.mod$Stud.Res)) + geom_abline(slope=1)
+  #   + xlab("t-distribution quantiles")
+  #   + ylab("Sorted studentized residuals")
+  #   + ggtitle(sprintf("Q-Q plot for %s model", colnames(mod$model)[1]))
+  # )
+  print(
+    qplot(fitted, rstud, size=I(0.5))
+    + geom_hline(yintercept=0)
+    + xlab("Fitted values")
+    + ylab("Studentized residuals")
+    + geom_smooth(method='loess', se=F, method.args=list(degree=1))
+    + ggtitle(sprintf("Studentized residuals vs. fitted values\nfor %s model", colnames(mod$model)[1]))
+  )
+  # print(ggplot(dat.mod, aes(x=log(Fitted), y=log(abs(Stud.Res)))) +
+  #         geom_point(size=0.5) + xlab("log Fitted values") + ylab("log Studentized residuals") + geom_smooth(method='lm', se=F))
+  # b <- coef(lm(log(abs(Stud.Res))~log(Fitted), data=dat.mod))[2]
+  # print(b)
+}
+```
+
+
+
+```{r fig.show="hold", fig.width=4}
+for (mod in mods) {
+  crPlot(mod, variable="Headwidth",
+         main=sprintf("CR plot for head width\nfor %s model", colnames(mod$model)[1]))
+}
+```
+
+```{r}
+summary(mods[[3]])
+```
+
+```{r fig.show='hold', fig.width=2.5, fig.height=2.5}
+mods.col <- list()
+for (i in 1:length(unique(dat$Colony))) {
+  mod.curr <- lm(log(Mass) ~ Distance + Headwidth + Size.class, data=dat, subset=(Colony == i))
+  mods.col <- c(mods.col, list(mod.curr))
+  print(summary(mod.curr))
+  coefs.dist <- coef(mod.curr)[2:5]
+  print(
+    qplot(
+      as.numeric(as.character(levels(dat$Distance))),
+      c(0, coefs.dist), 
+      geom="line") +
+      xlab("Distance") + ylab("Offset from Distance zero") +
+      ggtitle(sprintf("Mass differences by distance class,\n Colony %d", i)) +
+      ylim(-0.2, 0.2)
+  )
+}
+```
+
+# Alternative models
+
+## Transforming head width
+
+```{r}
+mod <- lm(Mass ~ . - 1, data=dat)
+crPlot(mod, variable="Headwidth", main="CR plot for head width")
+summary(mod)
+```
+
+```{r fig.width=8}
+mod <- lm(Mass ~ . + I(Headwidth^2) - 1, data=dat)
+crPlots(mod, terms=~Headwidth + I(Headwidth^2), main="CR plot for head width")
+summary(mod)
+```
+
+```{r fig.show='hold', fig.width=2.5, fig.height=2.5}
+mods.col <- list()
+for (i in 1:length(unique(dat$Colony))) {
+  mod.curr <- lm(log(Mass) ~ Distance + Headwidth + I(Headwidth^2) + Size.class, data=dat, subset=(Colony == i))
+  mods.col <- c(mods.col, list(mod.curr))
+  print(summary(mod.curr))
+  coefs.dist <- coef(mod.curr)[2:5]
+  print(
+    qplot(
+      as.numeric(as.character(levels(dat$Distance))),
+      c(0, coefs.dist), 
+      geom="line") +
+      xlab("Distance") + ylab("Offset from Distance zero") +
+      ggtitle(sprintf("Mass differences by distance class,\n Colony %d", i)) +
+      ylim(-0.2, 0.2)
+  )
+}
+```
+
+
+## Distance as a continuous variable
+
+```{r fig.width=8, fig.height=4}
+dat$Distance <- as.numeric(as.character(dat$Distance))
+mod <- lm(Mass ~ . - 1, data=dat)
+summary(mod)
+crPlots(mod, terms=~Headwidth+Distance)
+```
+
+```{r fig.width=8, fig.height=8}
+mod <- lm(Mass ~ . + I(Headwidth^2) - 1, data=dat)
+summary(mod)
+crPlots(mod, terms=~Headwidth+I(Headwidth^2)+Distance, layout=c(2,2))
+```
+
+```{r fig.width=8, fig.height=8}
+mod <- lm(Mass ~ . + I(Headwidth^2) + I(Distance^2) - 1, data=dat)
+summary(mod)
+crPlots(mod, terms=~Headwidth+I(Headwidth^2)+Distance+I(Distance^2), layout=c(2,2))
+```
+
+
+```{r fig.show='hold'}
+mods.col <- list()
+for (i in 1:length(unique(dat$Colony))) {
+  mod.curr <- lm(log(Mass) ~ Distance + Headwidth + I(Headwidth^2) + Size.class, data=dat, subset=(Colony == i))
+  mods.col <- c(mods.col, list(mod.curr))
+  print(summary(mod.curr))
+}
+
+for (i in 1:length(unique(dat$Colony))) {
+  print(coef(mods.col[[i]])[2])
+}
+```
+
+
+

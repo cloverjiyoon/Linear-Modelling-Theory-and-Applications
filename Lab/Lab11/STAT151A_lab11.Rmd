@@ -1,0 +1,370 @@
+---
+title: 'STAT151A: Lab 11'
+author: "Billy Fang"
+date: "11/16/2017"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Brief review of GLMs so far
+
+So far we have mainly considered the model
+$y_i \overset{\text{indep}}{\sim} N(\mu_i, \sigma^2)$,
+where $\mu_i = x_i^\top \beta$.
+In the last few weeks you learned about a much more general family of models
+(generalized linear models)
+that contains this linear model as a special case.
+The generality of GLMs helps combat modeling deficiencies of the Gaussian linear model,
+by allowing for more distributions, and also letting $x_i^\top \beta$ model
+a parameter of the distribution that might not be the mean.
+
+Roughtly, a GLM is specified by two things.
+
+1. Distribution (e.g., from the exponential dispersion family).
+2. Link function: how does $x_i^\top \beta$ enter the model? (e.g., canonical link function)
+
+### Exponential dispersion model
+
+We assume the $y_i$ are independent and each follow a distribution from 
+the **exponential dispersion family** (EDF),
+which is a *family* of distributions that includes many common distributions.
+The PDF/PMF of $y_i$ is of the form
+$$f(y_i ; \theta_i ,\phi_i) = h(y_i, \phi_i) \exp \left(\frac{y_i \theta_i - b(\theta_i)}{\phi_i}\right).$$
+Let's meet the cast.
+
+- canonical parameter $\theta_i$ (might *not* be the mean of the distribution)
+- cumulant function / normalization function $b(\theta_i)$
+- dispersion parameter $\phi_i$ (often assumed to be the same for all $i$)
+- base measure $h(y_i, \phi_i)$ *does not depend on $\theta_i$*
+
+Note that the canonical parameter $\theta_i$ appears only in two places in the form of the PDF/PMF.
+
+Refer to your lecture notes for examples of common distributions (Bernoulli, binomial, Poisson, Gamma)
+in this family.
+You should try to write them in EDF form on your own for practice.
+Remember to follow the rules ($h$ cannot depend on $\theta_i$, etc.).
+
+### Link function
+
+We have specified a distribution for $y_i$, but we have not yet specified how
+$x_i^\top \beta$ enters the model.
+In our linear model,
+$$\mu_i \equiv \mathbb{E}[y_i] = x_i^\top \beta,$$
+but we might consider letting $x_i^\top \beta$
+be a different parameter $g(\mu_i)$ of the distribution, rather than the mean.
+
+What is the mean of this distribution, i.e. what is $\mathbb{E}[y_i]$?
+A very important property of $b$ is $$\mu_i \equiv \mathbb{E}[y_i] = b'(\theta_i).$$
+We can rewrite this as
+$$g(\mu_i) = \theta_i,$$
+where $g := (b')^{-1}$ is called the *canonical link function*.
+If we use this link function, then $x_i^\top \beta$ enters the model directly as
+$$\theta_i = g(\mu_i) = x_i^\top \beta.$$
+
+
+
+#### Example: Logistic regression and probit regression
+
+The Bernoulli PMF can be written as
+$$f(y_i; p_i) = p_i^{y_i} (1 - p_i)^{1 - y_i} = \exp \left(y_i \log \frac{p_i}{1 - p_i} + \log(1 - p_i) \right), \qquad y_i \in \{0,1\}.$$
+(Note that $p_i = \mu_i$.)
+So, the canonical parameter is the log-odds $\theta_i = \log \frac{p_i}{1 - p_i}$,
+and if we choose to use the canonical link function,
+our model would have $\log \frac{p_i}{1 - p_i} = x_i^\top \beta$ or equivalently
+$$p_i = \frac{\exp(x_i^\top \beta)}{1 + \exp(x_i^\top \beta)}.$$
+This is logistic regression.
+
+In probit regression, one uses the link function $g = \Phi^{-1}$
+instead of the canonical link function $g(p_i) = \log \frac{p_i}{1 - p_i}$.
+This leads to
+$$p_i = \Phi(x_i^\top \beta)$$ instead.
+
+
+#### Example: Poisson regression
+
+The Poisson PMF can be written as
+$$f(y_i; \lambda_i) = e^{- \lambda_i} \frac{\lambda_i^{y_i}}{y_i!}
+= \frac{1}{y_i!} \exp(y_i \log \lambda_i - \lambda_i),
+\qquad y_i \in \{0, 1, 2, \ldots,\}.$$
+(Note $\mu_i = \lambda_i$.)
+Thus if we use the canonical link function, we would have
+$\theta_i := \log \lambda_i = x_i^\top \beta$, or equivalently
+$$\lambda_i = \exp(x_i^\top \beta).$$
+
+
+
+
+## Deviances
+
+One definition of **residual deviance** for a model is
+$$- 2 \log (\text{maximized likelihood of our model})
+%= - 2\sum_{i=1}^n \log h(y_i, \phi_i) - 2 \sum_{i=1}^n \frac{y_i \theta_i - b(\theta_i)}{a(\phi_i)}
+.$$
+
+- *Example: linear model.* Consider the usual linear model $y \sim N(X \beta, \sigma^2 I_n)$.
+One can check (*exercise*) that the residual deviance here is
+$$- 2 \ell(\widehat{\beta}) = \frac{\|y - X \widehat{\beta}\|^2}{\widehat{\sigma}^2} + n \log (2 \pi \widehat{\sigma}^2)
+= \frac{\text{RSS}}{\widehat{\sigma}^2} + n \log(2 \pi \widehat{\sigma}^2).$$
+So residual deviance is in some sense a generalization of $\text{RSS}$.
+- *Example: logistic model.* In the logistic model $y_i \sim \text{Bern}(p_i)$ with $\log \frac{p_i}{1 - p_i} = x_i^\top \beta$,
+this would be
+$$- 2 \ell(\widehat{\beta}) = - 2 \sum_{i=1}^n \left[y_i \log \widehat{p}_i + (1 - y_i) \log (1 - \widehat{p}_i)\right]$$
+where $\widehat{p}$ satisfies $\log \frac{\widehat{p}_i}{1 - \widehat{p}_i} = x_i^\top \widehat{\beta}$
+and $\widehat{\beta}$ is the MLE for which we do not have a closed expression.
+
+The **null deviance** is
+$$-2 \log (\text{maximized likelihood of the intercept-only model}).$$
+
+- *Example: linear model.* In the linear model, $y_i \sim N(\beta_0, \sigma^2)$,
+and we know the MLE is $\widehat{\beta}_0 = \overline{y}$, so the null deviance is
+$$\frac{\|y - \overline{y}\|^2}{\sigma^2} + n \log (2 \pi \sigma^2)
+= \frac{\text{TSS}}{\sigma^2} + n \log (2 \pi \sigma^2)$$
+So null deviance is in some sense a generalization of $\text{TSS}$.
+- *Example: logistic model.* In the logistic model with only an intercept, we have
+$y_i \sim \text{Bern}(p) = \text{Bern}\left(\frac{\exp(\beta_0)}{1 + \exp(\beta_0)}\right)$
+(i.e., each $y_i$ is Bernoulli with a common parameter $p$)
+so one can check (*exercise*) that the likelihood is minimized when $\widehat{\beta}_0 = \log \frac{\overline{y}}{1 - \overline{y}}$ (or equivalently, when $\widehat{p} = \overline{y}$).
+Thus, the null deviance is
+$$- 2 \sum_{i=1}^n \left[y_i \log \overline{y} + (1 - y_i) \log (1 - \overline{y})\right]
+= - 2 n \left[\overline{y} \log \overline{y} + (1 - \overline{y}) \log (1 - \overline{y})\right].$$
+
+Roughly, the larger the difference between residual deviance and null deviance,
+the better your model explains the variation in the data.
+
+
+**Warning:** sometimes these deviance terms are defined with an added constant.
+For example, your textbook adds an extra term
+$+ 2 \log (\text{maximized log likelihood of saturated model})$
+(see 15.1.1 or 15.3.3 of Fox) to both definitions.
+For the sake of comparing the residual deviance and null deviance,
+this does not really change anything, since the difference between the two will remain the same
+with or without this added constant.
+However, this extra term does "standardize" things in some sense;
+for example in the linear model examples above,
+it precisely gets rid of the annoying $n \log (2 \pi \sigma^2)$ term.
+
+## Deviance computations in `glm` summary
+
+This is an excerpt of code from yesterday's lecture
+
+```{r}
+library(DAAG)
+data(frogs)
+help(frogs)
+```
+
+```{r}
+frogs.glm0 <- glm(formula = pres.abs ~ altitude + log(distance) +
+                    log(NoOfPools) + NoOfSites + avrain + meanmin + meanmax,
+                  family = binomial, data = frogs)
+summary(frogs.glm0)
+```
+
+```{r}
+n <- dim(frogs)[1]
+p <- 7
+y <- frogs$pres.abs
+ybar <- mean(y)
+phat <- fitted(frogs.glm0)
+
+# residual deviance
+my.res.dev <- -2 * sum(y * log(phat) + (1 - y) * log(1 - phat))
+c(my.res.dev, summary(frogs.glm0)$deviance)
+# residual degrees of freedom
+c(n - p - 1, summary(frogs.glm0)$df.residual)
+# null deviance
+my.null.dev <- -2 * n * (ybar * log(ybar) + (1 - ybar) * log(1 - ybar))
+c(my.null.dev, summary(frogs.glm0)$null.deviance)
+# null degrees of freedom
+c(n - 1, summary(frogs.glm0)$df.null)
+# AIC is residual deviance + 2 * (p + 1)
+c(my.res.dev + 2 * (p + 1), summary(frogs.glm0)$aic)
+```
+
+
+Before we turn to our application, let us glance at a comparison of what
+linear regression achieves.
+```{r}
+frogs.lm <- lm(formula = pres.abs ~ altitude + log(distance) +
+                    log(NoOfPools) + NoOfSites + avrain + meanmin + meanmax,
+                  data = frogs)
+phat.lm <- fitted(frogs.lm)
+plot(phat.lm, phat, xlab="linear model fitted prob.", ylab="logistic fitted prob.", ylim=c(0,1))
+abline(0, 1)
+```
+
+
+# Prediction application in logistic regression
+
+Suppose we get data for a new site and want to predict whether frogs
+will be at the site or not.
+If we use our fitted model, we will obtain an estimate for the probability
+of frogs being present. But how do we turn this into a prediction?
+Should we use a cutoff of $0.5$, and predict yes if the estimated probability is $\ge 0.5$?
+
+Consider the following confusion matrix.
+$$\begin{array}{c|cc}
+& \text{predict $0$} & \text{predict $1$}
+\\ \hline
+\text{actual $0$} & a & b
+\\
+\text{actual $1$} & c & d
+\end{array}$$
+
+We would like $a$ and $d$ to be large, and we would like $b$ and $c$ to be small.
+
+Let us compare the values of $b+c$ on our given data, for various threshold values.
+```{r}
+thres.vec <- seq(0, 1, by=0.05)
+conf <- matrix(0, nrow=length(thres.vec), ncol=4)
+conf.lm <- matrix(0, nrow=length(thres.vec), ncol=4)
+for (i in 1:length(thres.vec)) {
+  thres <- thres.vec[i]
+  conf[i, 1] <- sum((!y) & (phat < thres))
+  conf[i, 2] <- sum((!y) & (phat >= thres))
+  conf[i, 3] <- sum(y & (phat < thres))
+  conf[i, 4] <- sum(y & (phat >= thres))
+}
+
+for (i in 1:length(thres.vec)) {
+  thres <- thres.vec[i]
+  conf.lm[i, 1] <- sum((!y) & (phat.lm < thres))
+  conf.lm[i, 2] <- sum((!y) & (phat.lm >= thres))
+  conf.lm[i, 3] <- sum(y & (phat.lm < thres))
+  conf.lm[i, 4] <- sum(y & (phat.lm >= thres))
+}
+
+bplusc <- conf[,2] + conf[,3]
+bplusc.lm <- conf.lm[,2] + conf.lm[,3]
+matplot(thres.vec, cbind(bplusc, bplusc.lm), xlab="threshold", ylab="b+c", type='l', col='black')
+thres.vec[which.min(bplusc)]
+legend(x=0.8, y=120, lty=1:2, col=1:2, c("glm","lm"))
+```
+
+We see that $0.55$ is the best threshold for logistic regression if we want to minimize $b+c$, the number of errors.
+
+Our choice of $b+c$ was arbitrary, and assumed that we consider both types of errors (false positive, false negative) as equally bad.
+
+For example, suppose a bank wants to decide whether to accept a customer's request for a loan.
+There are two types of errors.
+
+1. The bank denies the loan request, but the customer would have repaid the loan.
+2. The bank grants the loan request, but the customer goes bankrupt.
+
+The second error is more severe for the bank, so in that situation one might put more weight on one error over the other.
+
+As another example, consider a medical test for detecting a lethal disease.
+
+1. The test indicates the patient has the disease, but the patient is actually healthy.
+2. The patient actually has the disease, but the test does not detect it.
+
+Depending on your perspective, you may put more weight on one error over the other.
+
+Let us see what happens if we used $b + 3c$ for our frog example instead. (You really want to find frogs, so you would be really sad if you did not visit a site that had frogs only becuase your model mistakenly predicted that there are no frogs there.)
+```{r}
+bplus3c <- conf[,2] + 3*conf[,3]
+bplus3c.lm <- conf.lm[,2] + 3*conf.lm[,3]
+matplot(thres.vec, cbind(bplus3c, bplus3c.lm), xlab="threshold", ylab="b+3c", type='l')
+thres.vec[which.min(bplus3c)]
+legend(x=0.8, y=120, lty=1:2, c("glm","lm"))
+```
+As expected, the best threshold (on our data) lowered (to $0.25$), since we want to over-label sites as "yes"
+to avoid missing sites that frogs.
+
+
+
+
+The [**receiver operator characteristic (ROC) curve**](https://en.wikipedia.org/wiki/Receiver_operating_characteristic)
+is a plot of true positive rate $\frac{d}{c+d}$
+against false positive rate $\frac{b}{a+b}$
+as you change the threshold.
+
+```{r fig.width=6, fig.height=6}
+tpr <- conf[,4] / (conf[,3] + conf[,4])
+fpr <- conf[,2] / (conf[,1] + conf[,2])
+tpr.lm <- conf.lm[,4] / (conf.lm[,3] + conf.lm[,4])
+fpr.lm <- conf.lm[,2] / (conf.lm[,1] + conf.lm[,2])
+matplot(cbind(fpr, fpr.lm), cbind(tpr, tpr.lm), type='l', col='black', xlim=c(0,1), ylim=c(0,1),
+        xlab="false positive rate", ylab="true positive rate", main="ROC curve")
+legend(0.8, 0.2, lty=1:2, c("glm", "lm"))
+```
+
+# Another example with spam data
+
+Some exploratory data analysis suggested log transforms for some of the variables
+
+```{r}
+library(DAAG)
+data(spam7)
+help(spam7)
+spam <- spam7
+head(spam)
+n <- dim(spam)[1]
+
+s <- 1e-3 # Correction for zero. Log(0) is infinicty
+
+spam.glm <- glm(yesno~ log(crl.tot) + log(dollar+s) + log(bang+s)
+                +log(money+s) + log(n000+s) + log(make+s),
+                family=binomial, data=spam)
+summary(spam.glm)
+
+spam.lm <-  lm(as.numeric(yesno=="y")~ log(crl.tot) + log(dollar+s)
+               + log(bang+s) +log(money+s) + log(n000+s) + log(make+s)
+               ,data=spam)
+summary(spam.lm)
+
+p <- 6
+y <- as.numeric(spam$yesno) - 1
+phat <- fitted(spam.glm)
+phat.lm <- fitted(spam.lm)
+```
+
+We can use the same code as before to consider different thresholds
+for prediction.
+
+```{r echo=F}
+plot(phat.lm, phat, xlab="linear model fitted prob.", ylab="logistic fitted prob.", ylim=c(0,1), col='gray', pch=16, cex=0.25)
+abline(0, 1, col='blue')
+```
+
+```{r echo=F}
+thres.vec <- seq(0, 1, by=0.05)
+conf <- matrix(0, nrow=length(thres.vec), ncol=4)
+conf.lm <- matrix(0, nrow=length(thres.vec), ncol=4)
+for (i in 1:length(thres.vec)) {
+  thres <- thres.vec[i]
+  conf[i, 1] <- sum((!y) & (phat < thres))
+  conf[i, 2] <- sum((!y) & (phat >= thres))
+  conf[i, 3] <- sum(y & (phat < thres))
+  conf[i, 4] <- sum(y & (phat >= thres))
+}
+
+for (i in 1:length(thres.vec)) {
+  thres <- thres.vec[i]
+  conf.lm[i, 1] <- sum((!y) & (phat.lm < thres))
+  conf.lm[i, 2] <- sum((!y) & (phat.lm >= thres))
+  conf.lm[i, 3] <- sum(y & (phat.lm < thres))
+  conf.lm[i, 4] <- sum(y & (phat.lm >= thres))
+}
+
+bplusc <- conf[,2] + conf[,3]
+bplusc.lm <- conf.lm[,2] + conf.lm[,3]
+matplot(thres.vec, cbind(bplusc, bplusc.lm), xlab="threshold", ylab="b+c", type='l', col='black')
+thres.vec[which.min(bplusc)]
+legend(x=0.8, y=120, lty=1:2, col=1:2, c("glm","lm"))
+```
+
+```{r fig.width=6, fig.height=6, echo=F}
+tpr <- conf[,4] / (conf[,3] + conf[,4])
+fpr <- conf[,2] / (conf[,1] + conf[,2])
+tpr.lm <- conf.lm[,4] / (conf.lm[,3] + conf.lm[,4])
+fpr.lm <- conf.lm[,2] / (conf.lm[,1] + conf.lm[,2])
+matplot(cbind(fpr, fpr.lm), cbind(tpr, tpr.lm), type='l', col='black', xlim=c(0,1), ylim=c(0,1),
+        xlab="false positive rate", ylab="true positive rate", main="ROC curve")
+legend(0.8, 0.2, lty=1:2, c("glm", "lm"))
+```

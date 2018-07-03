@@ -1,0 +1,662 @@
+---
+title: 'STAT 151A: Lab 12'
+author: "Billy Fang"
+date: "December 1, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.show="hold", cache=T)
+```
+
+**Please fill out the course evaluation at
+https://course-evaluations.berkeley.edu/.
+It is important for the department to get your feedback so that we can improve
+the department's courses for future students.**
+
+
+```{r}
+library(ggplot2)
+library(reshape2)
+```
+
+
+
+# Classification trees
+
+The [rpart vignette](https://cran.r-project.org/web/packages/rpart/vignettes/longintro.pdf)
+has all the details about `rpart`. Some of the notes below are adapted from there.
+
+In a tree estimator, you can think of your dataset as a crowd of people
+that start at the top of the tree and walk downward. At each node is a sign
+telling people to go right or left depending on their characteristics (e.g.,
+go left if you are under 18 years old, otherwise go right).
+
+In the case of classification, you have some unknown
+categorical variable (not necessarily binary), say, "favorite color,"
+and you hope that at the bottom of the tree, each terminal node has
+a group of people that mostly like the same color.
+In other words, the broad goal is to choose good splitting criteria at each node
+so that the "purity" of the groups increases after the split.
+
+### Impurity measures
+
+How do we measure impurity at a node $G$ [before a split]?
+Suppose the response variable has $1,\ldots,C$ categories,
+and the proportion of the $n_G$ people [at this node $G$] in each category are
+$p_1, \ldots, p_C$ respectively.
+[This is different than the $\bar{p}_1$ and $\bar{p}_2$ in your lecture notes,
+which correspond to binary classification proportions in two different groups.]
+
+The **impurity** of the group of datapoints at this node is
+$$I(G) = f(p_1) + f(p_2) + \cdots + f(p_C),$$
+for some concave function $f$ with $f(0)=f(1)=0$. (This latter condition
+ensures $I(G)=0$ if $G$ is pure.)
+
+In lecture, we only considered *binary classification*  (label $0$ or $1$).
+There, if $p$ denotes the proportion of the $n_G$ people with label $1$,
+the impurity is simply
+$$I(G) = f(p) + f(1-p).$$
+
+Examples of $f$:
+
+- **Gini index**: $f(p) = p(1-p)$. In general, $I(G) = \sum_{i=1}^C p_i(1-p_i) = 1 - \sum_{i=1}^C p_i^2$ In binary classification, $I(G)=2p(1-p)$.
+- **Cross-entropy, deviance, information index**: $f(p) = - p\log p$. In general, $I(G) = -\sum_{i=1}^C p_i \log p_i$. In binary classification, $I(G) = - p \log p - (1-p) \log(1-p)$.
+- **Misclassification error**: $f(p) = \min\{p,1-p\}$. In general, $I(G) = \sum_{i=1}^C \min\{p_i, 1- p_i\}$. In binary classification, $I(G) = 2 \min\{p, 1-p\}$. *This is not a good splitting criterion, see below.*
+
+Above, the various factors of $2$ do not really matter, since we are concerned with *comparing*
+the value of the impurity for different values of $p$.
+
+The following is a plot of the various impurity measures in the case of binary classification.
+```{r fig.width=6, fig.height=4}
+p <- seq(1e-3, 1 - 1e-3, length.out=100)
+dat <- data.frame(p=p, Gini=2*p*(1-p), Entropy=-(p*log(p)+(1-p)*log(1-p))/log(2)/2, Class=pmin(p, 1-p))
+dat.melt <- melt(dat, id.vars="p", variable.name="Impurity")
+ggplot(dat.melt, aes(x=p, y=value)) + geom_line(aes(group=Impurity, linetype=Impurity)) + theme_classic()
+```
+
+Again, the values of curve do not really matter, since we can scale each curve by any
+constant to get an equivalent impurity measure. It is the shape of the curve that matters.
+For visualization's sake, I have chosen to scale by constants so that $f(1/2)$
+has the same value.
+
+
+
+Suppose we split $G$ into two groups $G_L$ and $G_R$ of size $n_L$ and $n_R$ respectively.
+The **impurity reduction**
+of this split is
+$$\Delta I := \frac{1}{n}\left[n_G I(G) - n_L I(G_L) - n_R I(G_R)\right],$$
+where $n$ is the number of datapoints in the full dataset.
+We want to choose a split (i.e., choose a variable $X_j$ and a cutoff $c$)
+that maximizes this impurity reduction, which is equivalent to minimizing
+$$n_L I(G_L) + n_R I(G_R).$$
+
+Suppose we are in a binary classification situation, and we let $p_L$ and $p_R$
+denote the proportion of $1$s in $G_L$ and $G_R$ respectively. [These are the $\bar{p}_1$ and $\bar{p}_2$ from your lecture notes.]
+
+- Gini: we want to minimize $2 [n_L p_L(1-p_L) + n_R p_R(1-p_R)]$. Note that you showed that this is equivalent to the RSS in a regression tree if you treat the response variable as numerical in $\{0,1\}$.
+- Cross-entropy: we want to minimize $-n_L[p_L \log p_L + (1-p_L) \log (1-p_L)] - n_R [p_R \log p_R + (1-p_R) \log (1-p_R)]$.
+- Misclassification error: we want to minimize $2 [n_L \min\{p_L, 1-p_L\} + n_R \min\{p_R, 1-p_R\}]$.
+
+
+By default, `rpart` uses Gini. You can also use the entropy by passing in an argument (see below).
+
+Using misclassification error as a splitting criterion has drawbacks, so I don't think `rpart`
+offers an option to use it.
+
+Suppose in the full dataset we have a binary response variable that is $1$ for $80$
+of the datapoints, and $0$ for the other $20$. If our first split gives us $G_L$
+with $40$ datapoints all labeled with $1$, while $G_R$ has $40$ datapoints labeled $1$
+and $20$ datapoints labeled $0$, then what is the impurity reduction $\Delta I$?
+
+- For misclassification error it is $\Delta I = \frac{1}{100}\left[100\cdot \frac{20}{100} - 40 \cdot 0 - 60 \cdot \frac{20}{60} \right] = 0$.
+- For Gini and entropy, you can check that $\Delta I > 0$.
+
+So, despite this split being quite good, the misclassification error impurity measure does not really recognize it.
+The issue is the linearity of the misclassification error impurity function.
+Note that we are measuring the impurity of a split by a weighted average of two impurities.
+The strict concavity of the Gini and entropy functions ensures that after a split,
+the impurity strictly decreases. The picture below (taken from [here](https://sebastianraschka.com/faq/docs/decisiontree-error-vs-entropy.html))
+visualizes this.
+
+<img src="concavity.png" width="600px">
+
+
+
+### Stopping criteria and pruning
+
+We have discussed how to choose splits, but when do we stop?
+
+<img style="float: right;" src="groot.png" width="250px">
+
+For a nonnegative **complexity criterion** $\alpha$ (denoted as `cp` in `rpart`),
+we define the **cost complexity** of a tree $T$ by
+$$C_\alpha(T) := C(T) + \alpha C(T_{\text{root}}) |T|,$$
+where $C(\cdot)$ returns some notion of error/risk of a tree,
+and $T_{root}$ is the tree with no splits (just root node).
+
+- In the case of regression trees, we used $C(T)=\text{RSS}(T)$ and thus $C(T_{\text{root}})=\text{TSS}$,
+which gives the formula in your lecture notes.
+- For classification, we use $C(T)=\frac{\#\text{errors}}{n}$. **Exercise.** In words, what is $C(T_{\text{root}})$?
+
+
+<small>
+*Warning:* sometimes you will see $C_\alpha(T)$ defined as $C(T) + \alpha |T|$ instead
+(e.g., compare pages 12 and 24 of the [rpart vignette](https://cran.r-project.org/web/packages/rpart/vignettes/longintro.pdf)).
+This does not really matter too much, since $C(T_{\text{root}})$ is a constant
+that does not depend on $T$. But `cp` in `rpart` is defined using the earlier definition.
+</small>
+
+`rpart` has various stopping criteria. See `help(rpart.control)` for some of these parameters.
+
+- `minsplit` (default is `20`): The minimum number of observations that must exist in a node in order for a split to be attempted. This parameter can save computation time, since smaller nodes are almost always pruned away by cross validation.
+- `minbucket` (default is `minsplit/3`): The minimum number of observations in a terminal node.
+- `cp` (default is `0.01`): The threshold complexity parameter.
+
+`rpart` continues splitting until either the `minsplit` or `minbucket` conditions are violated,
+or if a split does not decrease the cost $C_\alpha$ of the tree.
+Specifically, suppose $T$ is a tree and $T'$ is a tree with one more split that we are considering.
+Then
+$$C_\alpha(T) - C_\alpha(T') = [C(T) - C(T')] - \alpha C(T_{\text{root}}).$$
+This gives a nice interpretation of $\alpha$: `rpart` will not consider a split
+if $C(T) - C(T')$ (the decrease in error)  is smaller than $\alpha C(T_{\text{root}})$.
+Thus if we use $\alpha = 0$, then `rpart` will construct the entire tree (up to the `minsplit` and `minbucket` conditions.)
+If we use $\alpha=1$, then `rpart` will not split beyond the root.
+
+
+So after calling `rpart` with some fixed value of $\alpha$ (a.k.a. `cp`, default value is `0.01`),
+we obtain some tree.
+How can we prune with `rpart`? If we use `printcp()`, it shows what happens
+if we consider sub-trees that result from using values of $\alpha$ larger than
+whatever the `cp` value was in our original call to `rpart()`,
+along with cross-validation scores for each value of $\alpha$.
+[Why do larger values of $\alpha$ yield smaller trees?]
+As you continuously increase $\alpha$ to $1$, you will get a finite number of
+sub-trees, and I believe `printcp()` lists one value of $\alpha$ for each sub-tree.
+You can then use `prune()` to produce a sub-tree using one of the other values of $\alpha$.
+
+
+### Example
+
+In lecture you looked at some code for a regression tree example.
+Here we will look at a classification tree example.
+
+```{r warning=F}
+library(DAAG)
+data(spam7)
+help(spam7)
+spam = spam7
+```
+
+
+```{r}
+library(rpart)
+sprt = rpart(yesno ~ ., method = "class", data = spam)
+plot(sprt, margin=0.1)
+text(sprt)
+sprt
+```
+
+Make sure you understand how to read every part of the text output.
+
+As mentioned earlier, the default call to `rpart` uses Gini. To use entropy,
+you need to pass another argument, as follows.
+
+```{r}
+isprt = rpart(yesno ~ ., method = "class", parms = list(split = 'information'), data = spam)
+plot(isprt, margin=0.1)
+text(isprt)
+isprt
+```
+
+
+
+
+
+$$\begin{array}{c|cc}
+& \text{predict $0$} & \text{predict $1$}
+\\ \hline
+\text{actual $0$} & a & b
+\\
+\text{actual $1$} & c & d
+\end{array}$$
+
+- **Precision** is $\frac{d}{b+d}$
+- **Recall** is $\frac{d}{c+d}$
+
+```{r}
+confusion <- function (y, yhat, thres)
+{
+  n <- length(thres)
+  conf <- matrix(0,length(thres),ncol=4)
+  colnames(conf) <- c("a","b","c","d")
+  for ( i in 1:n)
+  {
+    a <- sum((!y) & (yhat<=thres[i]))
+    b <- sum((!y) & (yhat>thres[i]))
+    c <- sum((y) & (yhat<=thres[i])) 
+    d <- sum((y) & (yhat>thres[i]))
+    conf[i,] <- c(a,b,c,d)
+  }
+  return(conf)
+}
+```
+
+
+```{r}
+y.tr = predict(sprt, spam)[,2]
+thres <- seq(0.05, 0.95, by = 0.05)
+y = as.numeric(spam$yesno == "y")
+tree.conf = confusion(y, y.tr, thres)
+qplot(thres, tree.conf[,2]+tree.conf[,3], xlab="threshold", ylab="b+c", geom="line") + theme_classic()
+# pick threshold 0.5
+conf <- as.vector(tree.conf[which(thres==0.5),])
+precision <- conf[4] / (conf[2] + conf[4])
+recall <- conf[4] / (conf[3] + conf[4])
+c(precision, recall)
+```
+
+
+
+
+
+
+You can modify the $\alpha$ value you want to use in the original call to `rpart`.
+```{r}
+set.seed(0)
+dense.sprt <- rpart(yesno ~ ., method="class", data=spam, cp=0.001)
+plot(dense.sprt, margin=0.1)
+text(dense.sprt)
+```
+
+Be careful when reading the `printcp` output. the `rel error` and `xerror`
+columns are *not* the misclassification errors [on the full dataset] and cross-validation
+errors. You need to multiply each column by the `Root node error` above the
+table to get the actual errors. The scaling is chosen so that the first row
+always has `rel error` and `xerror` equal to `1.0`, for readability.
+
+We can pick the value of $\alpha$ that has smallest cross-validation error.
+(Remember, the cross-validation errors are random.)
+In practice one might instead follow the "1 standard error" rule; see
+discussion of `lambda.1se` in `glmnet` below.
+```{r}
+table.cp <- printcp(dense.sprt)
+cp.x <- table.cp[which.min(table.cp[,4]), 1]
+cp.x
+```
+
+
+
+```{r}
+fsprt <- rpart(yesno ~ ., method="class", data=spam, cp=cp.x)
+plot(fsprt, margin=0.1)
+text(fsprt)
+fconf <- table(spam$yesno, as.numeric(predict(fsprt)[,2] >= 0.5))
+fconf
+fconf <- as.vector(t(fconf))
+fprecision <- fconf[4] / (fconf[2] + fconf[4])
+frecall <- fconf[4] / (fconf[3] + fconf[4])
+c(fprecision, frecall)
+```
+
+Compare with our original model with default `cp=0.01`.
+```{r}
+plot(sprt, margin=0.1)
+text(sprt)
+c(precision, recall)
+```
+
+
+
+
+### An example with categorical explanatory variables
+
+```{r}
+trn <- read.csv("train_titanic.csv", header = TRUE)
+rt <- rpart(Survived ~ as.factor(Pclass)+ Sex + SibSp + Parch + Fare + Embarked,
+            method="class", data=trn)  
+plot(rt, margin=0.1)
+text(rt)
+rt
+```
+
+
+
+
+
+
+
+# Shrinkage: Ridge regression, LASSO, elastic-net
+
+Timeline of concepts we have studied in this class:
+
+- Least squares, linear regression, hypothesis testing: Legendre (1805), Gauss (1809, 1822), Laplace (1810), Galton (1886), Pearson, Fisher, Neyman, ...
+- Generalized linear models: Nelder, Wedderburn (1972)
+- Classification and regression trees (CART): Breiman (1984)
+- Ridge regression: Tikhonov (1960s-), Hoerl (1959)
+- LASSO: Tibshirani (1996)
+
+
+<img src="tibshirani1995.jpg" width="400px">
+<img src="tibshirani2017.jpg" width="400px">
+
+### Motivation
+
+Let us center and normalize (divide by standard deviation) the columns of our
+design matrix $X$ to put all the variables on the same scale,
+and let us center our response variable $y$. Then we will not have an intercept term.
+
+At the beginning of the course, I mentioned the following result which holds for any
+$n \times p$ matrix $X$.
+$$X^\top X \text{ is invertible} \iff \text{rank}(X) = p.$$
+Also recall the fact $\text{rank}(X) \le \min\{n, p\}$.
+**Exercise.** If $p > n$, how many solutions $\widehat{\beta}$ are there
+to the normal equation $X^\top X \widehat{\beta} = X^\top y$?
+
+Some notation: the $\ell_q$ norm is defined by $\|x\|_q = \left(\sum_i |x_i|^q\right)^{1/q}$. So the $\ell_2$ norm is $\|x\|_2 = \sqrt{\sum_i x_i^2}$,
+also known as the Euclidean norm. Also, the $\ell_1$ norm is $\|x\|_1 = \sum_i |x_i|$.
+
+*Ridge regression** has two equivalent formulations. One is the constrained form with a radius $c$ as a tuning parameter.
+$$\widehat{\beta}_{RR} = \arg\min_{\beta \in \mathbb{R}^p : \|\beta\|_2 \le c} \|y - X\beta\|_2^2$$
+The other is the Lagrangian/penalized form with penalty parameter $\lambda$.
+$$\widehat{\beta}_{RR} = \arg\min_{\beta \in \mathbb{R}^p} \|y - X\beta\|^2 + \lambda \|\beta\|_2^2$$
+Each $c \ge 0$ corresponds to some value of $\lambda \ge 0$ and vice versa, but this is not a one-to-one
+correspondence.
+
+**Exercise.** Qualitatively how do $c$ and $\lambda$ depend on each other? Specifically,
+incresing $c$ corresponds to increasing $\lambda$ or decreasing $\lambda$?
+
+The constrained formulation is good for intuition (see pictures below), but
+we typically focus on the penalized formulation in practice.
+
+**Exercise.** Show that $X^\top X + \lambda I_p$ is invertible.  (Hint 1: What is an equivalent condition for invertibility? Hint 2: How do the eigenvalues of $X^\top X$ relate to the eigenvalues of $X^\top X + \lambda I_p$? Hint 3: $X^\top X$ is positive semi-definite, i.e. it has nonnegative eigenvalues.)
+
+**Exercise.** Show that (with the penalized formulation of ridge regression),
+$$\widehat{\beta} = (X^\top X + \lambda I_p)^{-1} X^\top y.$$
+(Hint: set the gradient of the objective function to zero.) How many solutions are there?
+
+**Exercise.** The fitted value $\widehat{y} = X \widehat{\beta}_{RR}$ can be written as $\widehat{y} = H_\lambda y$, i.e., this is a linear estimator. Write down $H_\lambda$. Its trace is the effective degrees of freedom of this estimator; check that this is $p$ when $\lambda=0$.
+
+**Exercise.** Roughly argue why this is a biased estimator of $\beta$.
+
+<img src="ridge.png" width="800px" >
+
+
+**LASSO** is defined similarly.
+One is the constrained form with a radius $c$ as a tuning parameter.
+$$\widehat{\beta}_{LASSO} = \arg\min_{\beta \in \mathbb{R}^p : \|\beta\|_1 \le c} \|y - X\beta\|_2^2$$
+The other is the Lagrangian/penalized form with penalty parameter $\lambda$.
+$$\widehat{\beta}_{LASSO} = \arg\min_{\beta \in \mathbb{R}^p} \|y - X\beta\|^2 + \lambda \|\beta\|_1$$
+Again, we focus on the penalized formulation.
+
+<small>
+Here are a few properties regarding the solution set of this optimization problem (see Lemma 1 of [this paper](http://www.stat.cmu.edu/~ryantibs/papers/lassounique.pdf)).
+
+- The LASSO solution is either unique or there are infinitely many solutions.
+- Every LASSO solution $\widehat{\beta}$ gives the same fitted value $X \widehat{\beta}$.
+- If $\lambda > 0$, then every LASSO solution $\widehat{\beta}$ has the same $\ell^1$ norm $\|\widehat{\beta}\|_1$.
+
+</small>
+
+Let us visualize the constrained formulations of ridge regression and LASSO
+in the case $p=2$. In both cases, the objective function that we seek to minimize
+is $f(\beta) = \|y - X \beta\|^2$, which is a quadratic function in the vector $\beta$,
+so it can be shown to have elliptical contours.
+The constraint sets $\|\beta\|_2 \le c$ and $\|\beta\|_1 \le c$ are
+a circle and a square respectively.
+
+
+<img src="lasso.png" width="600px">
+
+**Exercise.** In terms of the contours and the two constraint sets, describe where the solution
+to ridge regression and LASSO appear in the above pictures. In particular, what is $\widehat{\beta}_1$ in the LASSO solution?
+
+**Exercise.** Explain why in the above pictures $n \le p$.
+
+**Exercise.** Compare the ridge and LASSO solutions with the OLS solution. Why are these methods sometimes referred to as "shrinkage" estimators?
+
+**Exercise.** When the radius $c$ is very large, what are the solutions to each optimization problem?
+
+
+The above picture attempts to illustrate an attractive property of the LASSO estimator:
+it tends to return solutions that are **sparse** (having few nonzero entries).
+This suggests another possible advantage of LASSO beyond being able to deal with the case $p > n$:
+if the true parameter $\beta$ is sparse (i.e., only a few of the $p$ explanatory variables actually enter our linear model $y = X \beta + \epsilon$), then maybe LASSO can do a good job estimating $\beta$.
+
+Why don't we do best subset selection instead? We could ask for
+$$\min_{\beta : \sum_{j=1}^p I(\beta_j \ne 0) \le k} \|y - X \beta \|^2,$$
+i.e. look for the $\beta$ that gives the best fit among all $\beta$ that have
+$\le k$ nonzero components. (Recall that this is essentially what `regsubsets` does.)
+However, as the number of subsets you need to explore grows exponentially in $k$
+Even the toy example below with the modest sizes $n=100$, $p=150$, and $k\approx p/4$
+takes a long time. (Note that $\binom{p}{k}$ here is already on the order of $10^{35}$.) Imagine what happens when $p$ is even larger.
+
+```{r warning=F}
+library(leaps)
+library(glmnet)
+n <- 100
+p <- 150
+k <- floor(p / 4)
+X <- matrix(rnorm(n*p), n, p)
+beta <- rep(0, p)
+idx <- sample(1:p, k)
+beta[idx] <- 1
+beta
+y <- X %*% beta + rnorm(n, sd=0.5)
+
+# run these lines to freeze your computer
+# rs <- regsubsets(x=X, y=y, nvmax=k, really.big=T)
+# summary(rs)
+```
+
+
+It turns out that it is possible to solve the LASSO optimization problem
+using "hill climbing" methods; in R, `glmnet` uses coordinate descent.
+Running `glmnet` on the above example is almost instantaneous.
+
+
+
+<small>
+Side note: ridge regression and LASSO arise naturally from a Bayesian perspective
+by considering the Gaussian prior and the Laplace prior respectively, on the coefficients $\beta_j$.
+</small>
+
+### Using `glmnet`
+
+The [glmnet vignette](https://web.stanford.edu/~hastie/glmnet/glmnet_alpha.html) is very useful.
+The following examples are from [here](http://www4.stat.ncsu.edu/~post/josh/LASSO_Ridge_Elastic_Net_-_Examples.html).
+
+`glmnet` by solves the following problem
+$$\min_{\beta_0, \beta} \frac{1}{n}\sum_{i=1}^n (y_i - \beta_0 - \beta^\top x_i)^2 + \lambda \left[\frac{\alpha}{2} \|\beta\|_2^2 +  (1-\alpha) \|\beta\|_1\right].$$
+
+Where $\alpha \in [0,1]$ is a parameter `alpha` to be passed into the call to `glmnet()`.
+By default `alpha=1` which gives LASSO. To do ridge regression, choose `alpha=0`.
+Intermediate values of `alpha` give a mixture of the two penalties; this general
+estimator is called **elastic net regularization**.
+
+A call to `glmnet` will solve this optimization problem for many values of $\lambda$.
+You can manually specify how many values of $\lambda$ to try by changing `nlambda` (default is `100`),
+or even pass in your own sequence of $\lambda$ values to `lambda`.
+
+```{r message=F}
+library(glmnet)
+```
+
+Let us consider an example where $p=2000$ but only $k=20$ entries of $\beta$ are nonzero.
+
+```{r}
+set.seed(0)
+n <- 1000
+p <- 2000
+k <- 20
+X <- matrix(rnorm(n*p), n, p)
+beta <- c(rep(1, k), rep(0, p-k))
+y <- X %*% beta + rnorm(n)
+
+idx <- sample(1:n, 0.66*n)
+X.train <- X[idx,]
+y.train <- y[idx]
+X.test <- X[-idx,]
+y.test <- y[-idx]
+```
+
+```{r fig.width=4, fig.height=4}
+# LASSO
+fit <- glmnet(X.train, y.train)
+plot(fit)
+plot(fit, xvar="lambda")
+fit
+```
+
+You can pick a particular value of $\lambda$ to use for prediction by using the `s` parameter.
+```{r}
+# Manually pick some lambda
+lambda <- 0.6
+head(coef(fit, s=lambda), 31)
+yhat.lambda <- predict(fit, newx=X.test, s=lambda)
+mean((yhat.lambda - y.test)^2)
+```
+
+Alternatively you can pick $\lambda$ by cross-validation by using `cv.glmnet`.
+```{r}
+cvfit <- cv.glmnet(X.train, y.train)
+plot(cvfit)
+log(cvfit$lambda.min)
+log(cvfit$lambda.1se)
+```
+
+`lambda.min` is the choice of $\lambda$ that minimizes the cross validation error.
+`lambda.1se` is the largest lambda (resulting in more shrinkage) such that the
+cross validation is within one standard error of the minimum.
+Apparently `lambda.1se` is a standard choice; erring on the side of parsimony (simpler model)
+helps mitigate the fact that the cross validation errors are only estimates of the risk curves.
+[See [here](https://stats.stackexchange.com/questions/138569/why-is-lambda-plus-1-standard-error-a-recommended-value-for-lambda-in-an-elastic) for more discussion.]
+
+
+```{r}
+head(coef(cvfit, s=cvfit$lambda.1se), 31)
+yhat.cvlambda <- predict(cvfit, newx=X.test, s=cvfit$lambda.1se)
+mean((yhat.cvlambda - y.test)^2)
+```
+
+
+Let's look at ridge regression
+
+```{r fig.width=4, fig.height=4}
+# Ridge
+fit <- glmnet(X.train, y.train, alpha=0)
+plot(fit)
+plot(fit, xvar="lambda")
+```
+
+
+```{r}
+cvfit <- cv.glmnet(X.train, y.train, alpha=0)
+plot(cvfit)
+head(coef(cvfit, s=cvfit$lambda.1se), 31)
+yhat.cvlambda <- predict(cvfit, newx=X.test, s=cvfit$lambda.1se)
+mean((yhat.cvlambda - y.test)^2)
+```
+
+
+Let's compare LASSO, ridge, and some other choices of the elastic net parameter $\alpha$.
+Recall that in our example example where $p=2000$ but only $k=20$ entries of $\beta$ are nonzero,
+and we have $n=1000$ datapoints.
+
+```{r net1}
+t <- 5
+fits <- list()
+MSEs <- rep(0, t+1)
+for (i in 0:t) {
+  fits[[i+1]] <- cv.glmnet(X.train, y.train, alpha=i/t)
+  yhat <- predict(fits[[i+1]], newx=X.test, s=fits[[i+1]]$lambda.1se)
+  MSEs[i+1] <- mean((yhat - y.test)^2)
+}
+MSEs
+(which.min(MSEs) - 1)/t
+```
+
+LASSO does best in this case because few components of the true $\beta$ are nonzero.
+
+Let's now consider an example where there are a lot more nonzero coefficients.
+
+```{r}
+set.seed(0)
+n <- 1000
+p <- 2000
+k <- 500
+X <- matrix(rnorm(n*p), n, p)
+beta <- c(rep(1, k), rep(0, p-k))
+y <- X %*% beta + rnorm(n)
+
+idx <- sample(1:n, 0.66*n)
+X.train <- X[idx,]
+y.train <- y[idx]
+X.test <- X[-idx,]
+y.test <- y[-idx]
+```
+
+```{r fig.width=4, fig.height=4}
+fit.l <- glmnet(X.train, y.train)
+plot(fit.l, xvar="lambda")
+fit.r <- glmnet(X.train, y.train, alpha=0)
+plot(fit.r, xvar="lambda")
+```
+
+
+
+```{r net2}
+t <- 5
+fits <- list()
+MSEs <- rep(0, t+1)
+for (i in 0:t) {
+  fits[[i+1]] <- cv.glmnet(X.train, y.train, alpha=i/t)
+  yhat <- predict(fits[[i+1]], newx=X.test, s=fits[[i+1]]$lambda.1se)
+  MSEs[i+1] <- mean((yhat - y.test)^2)
+}
+MSEs
+(which.min(MSEs) - 1)/t
+```
+
+Here ridge regression does best.
+Here the sparsity of the true $\beta$ is not small enough for LASSO to
+have better prediction error than ridge regression (and LASSO probably does not
+find the right variables, from looking at the paths plot above).
+However, despite the better prediction error, the ridge regression estimate
+is not very interpretable since it involves all $p=2000$ variables.
+
+
+Ridge and elastic net also perform better than LASSO
+when the explanatory variables are correlated/colinear. See [here](https://stats.stackexchange.com/a/264118/) for some intuition,
+and [here](http://www4.stat.ncsu.edu/~post/josh/LASSO_Ridge_Elastic_Net_-_Examples.html#example-3) for a simulation.
+
+
+### Logistic with LASSO
+
+As suggested by the name of the package, `glmnet` can also do regularization
+with other GLM models. We simply replace the least squares term $\|y - X \beta\|^2$
+with the negative log likelihood of whichever GLM we want.
+
+In the case of logistic regression, it is
+$$\min_{\beta_0, \beta} -\left[\frac{1}{n} \sum_{i=1}^n y_i (\beta_0 + x_i^\top \beta) - \log(1+\exp(\beta_0 + x_i^\top\beta))\right] + \lambda \left[\frac{\alpha}{2} \|\beta\|_2^2 +  (1-\alpha) \|\beta\|_1\right].$$
+
+We can ask `glmnet` to use this by adding `family="binomial"` to the call.
+Here is an example on the Titanic dataset.
+
+```{r fig.width=4, fig.height=4}
+titanic <- read.csv("train_titanic.csv")
+titanic <- na.omit(titanic)
+
+# need to use model.matrix() to create design matrix for glmnet
+dd <- titanic[, c("Survived", "Pclass", "Sex", "Age", "SibSp", "Parch", "Fare", "Embarked")]
+dd$Pclass <- as.factor(dd$Pclass)
+X <- model.matrix(Survived~., dd)
+X <- X[,-1]
+
+fit <- glmnet(X, titanic$Survived, family="binomial")
+plot(fit, xvar="lambda")
+cvfit <- cv.glmnet(X, titanic$Survived, family="binomial")
+plot(cvfit)
+coef(cvfit, s=cvfit$lambda.1se)
+```
+

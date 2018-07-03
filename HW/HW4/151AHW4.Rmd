@@ -1,0 +1,440 @@
+---
+title: "151AHW4"
+author: "Jiyoon Clover Jeong"
+date: "10/26/2017"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(ggplot2)
+library(SignifReg) #stepwise 
+library(caret) #fold
+library(leaps, warn.conflicts = T) #Best subset
+library(stats) #extract   AIC or AIC
+```
+
+
+
+# Problem 2 - (a)
+
+```{r}
+bodyfat <- read.csv("/Users/cloverjiyoon/2017Fall/Stat 151A/Lab/Lab3/bodyfat.csv")
+
+bodyfat$Density <- NULL
+
+names(bodyfat)
+
+```
+
+
+## Backward elimination using the individual p-values.
+
+```{r}
+dat1 <- bodyfat
+n <- ncol(dat1)-1
+
+
+for(i in 1:n){
+  fit <- summary(lm(bodyfat ~., data = dat1))
+  maxval <- max(fit$coefficients[-1,4])
+  maxindex <- which.max(fit$coefficients[-1,4])
+  # deleting intercept, getting pval column from summary
+  if(maxval > 0.05){
+      dat1 <- dat1[,-(maxindex + 1)]
+  }
+  else
+    break
+}
+
+model1 <- dat1
+
+summary(lm(bodyfat ~., data = model1))
+
+
+# Check with function in R
+SignifReg(bodyfat ~., data = bodyfat, alpha = 0.05, direction = "backward", criterion = "p-value")
+```
+
+
+## Forward Selection using p-values.
+
+```{r}
+
+dat1 <- bodyfat
+formula <- c("bodyfat ~ 1")
+predictors <- c()
+plist <- as.vector(names(dat1[,-1]))
+plist
+
+
+
+for(i in 1:n){
+  
+  minindex <- 0
+  minval <- 10^3
+  
+  for(j in 1:length(plist)){
+    
+    fit <- summary(lm( paste(formula, plist[j], sep = "+"),
+                       data = dat1))
+    if(fit$coefficients[plist[j], 4] < minval){
+      minval <- fit$coefficients[plist[j], 4]
+      minindex <- j
+    }
+  }
+    
+    # deleting intercept, getting pval column from summary
+    if(minval > 0.05){
+        break
+    }
+  
+    else{
+      formula <- paste(formula, plist[minindex], sep ="+")
+      
+      recovered_minindex <- match(plist[minindex], names(bodyfat))
+      plist <- plist[-minindex]
+      # recover to original index from plist
+      predictors <- append(predictors, recovered_minindex)
+      
+    }
+}
+
+
+plist
+
+formula
+
+predictors
+
+model2 <- bodyfat[,c(1,predictors)]
+  
+summary(lm(bodyfat ~., data = model2))
+
+
+SignifReg(bodyfat ~., data = bodyfat, alpha = 0.05, direction = "forward", criterion = "p-value")
+
+
+```
+
+
+## Adjusted R2
+
+```{r}
+
+formula <- c("bodyfat ~ 1")
+predictors <- c()
+plist <- as.vector(names(dat1[,-1]))
+plist
+
+
+
+for(i in 1:n){
+ 
+  prevR2 <-  summary(lm( formula, data = dat1))$adj.r.squared
+  maxindex <- 0
+  maxval <- 0
+  
+  for(j in 1:length(plist)){
+    
+    fit <- summary(lm( paste(formula, plist[j], sep = "+"),
+                       data = dat1))
+    fit
+    if(fit$adj.r.squared > maxval){
+      maxval <- fit$adj.r.squared
+      maxindex <- j
+    }
+  }
+    
+    # deleting intercept, getting pval column from summary
+    if(maxval < prevR2){
+        break
+    }
+  
+    else{
+      formula <- paste(formula, plist[maxindex], sep ="+")
+      
+      recovered_maxindex <- match(plist[maxindex], names(bodyfat))
+      plist <- plist[-maxindex]
+      # recover to original index from plist
+      predictors <- append(predictors, recovered_maxindex)
+      
+    }
+}
+
+
+plist
+
+formula
+
+predictors
+
+model3 <- bodyfat[,c(1,predictors)]
+  
+summary(lm(bodyfat ~., data = model3))
+
+
+```
+
+
+## AIC  (pick smallest)
+
+```{r}
+
+
+AIC <- c()
+
+
+subsets <- summary(regsubsets(bodyfat~., bodyfat, nvmax = 13,  method ="forward"))
+
+m <- nrow(bodyfat)
+
+for(i in 1:n){
+  
+  index <- as.numeric(subsets$which[i,])
+  index <- which(index %in% c(1))
+  index
+  dat1 <- bodyfat[, index]
+  head(dat1)
+  residual <- residuals(summary(lm(bodyfat ~., data = dat1)))
+  RSS_m <- sum((residual)^2)
+  RSS_m
+  AIC[i] <- m * log(RSS_m / m) + 2 * (1+ (length(index) -1))
+  AIC[i]
+}
+
+which.min(AIC)
+AIC
+
+index <- as.numeric(subsets$which[which.min(AIC),])
+index <- which(index %in% c(1))
+index
+
+model4 <- bodyfat[, index]
+
+summary(lm(bodyfat~., data = model4))
+
+
+```
+
+
+## BIC
+```{r}
+
+
+
+BIC <- c()
+
+
+subsets <- summary(regsubsets(bodyfat~., bodyfat, nvmax = 13,  method ="forward"))
+
+m <- nrow(bodyfat)
+
+for(i in 1:n){
+  
+  index <- as.numeric(subsets$which[i,])
+  index <- which(index %in% c(1))
+  index
+  dat1 <- bodyfat[, index]
+  head(dat1)
+  residual <- residuals(summary(lm(bodyfat ~., data = dat1)))
+  RSS_m <- sum((residual)^2)
+  RSS_m
+  BIC[i] <- m * log(RSS_m / m) + log(m) * (1+ (length(index) -1))
+  BIC[i]
+}
+
+which.min(BIC)
+BIC
+
+index <- as.numeric(subsets$which[which.min(BIC),])
+index <- which(index %in% c(1))
+index
+
+model5 <- bodyfat[, index]
+
+summary(lm(bodyfat~., data = model5))
+
+```
+
+
+## Mallow's $C_p$
+
+```{r}
+
+
+C_p <- c()
+
+# 
+# subsets <- summary(regsubsets(bodyfat~., bodyfat, nvmax = 13,  method ="forward"))
+# 
+# m <- nrow(bodyfat)
+
+for(i in 1:n){
+  
+  index <- as.numeric(subsets$which[i,])
+  index <- which(index %in% c(1))
+  index
+  dat1 <- bodyfat[, index]
+  head(dat1)
+  residual <- residuals(summary(lm(bodyfat ~., data = dat1)))
+  RSS_m <- sum((residual)^2)
+  RSS_m
+  
+  residual <- residuals(summary(lm(bodyfat ~., data = bodyfat)))
+  RSS <- sum(residual^2)
+  
+  sigmasq <- RSS / (m - (ncol(bodyfat) - 1) - 1)
+  
+  C_p[i] <- ( RSS_m / sigmasq ) - (m - 2 - 2 * (length(index) -1))
+  C_p[i]
+}
+
+which.min(C_p)
+C_p
+
+index <- as.numeric(subsets$which[which.min(C_p),])
+index <- which(index %in% c(1))
+index
+
+model6 <- bodyfat[, index]
+
+summary(lm(bodyfat~., data = model6))
+
+```
+
+# Part (b)
+
+```{r}
+
+set.seed(10)
+
+folds <- createFolds(bodyfat[,1], 10)
+#folds
+
+models <- list(model1,model2,model3,model4,model5,model6)
+MSE <- matrix(0,6,10)
+
+for(i in 1:6){
+  for(j in 1:10){
+    train <- models[[i]][-folds[[j]], ]
+    test <- models[[i]][folds[[j]], ]
+    fit <- lm(bodyfat ~., data  = train)
+    predicted <- predict(fit, newdata = test, type = "response")
+    mse <- mean((test[,1] - predicted)^2)
+    mse
+    MSE[i,j] <- mse
+
+  }
+}
+
+MSE
+
+
+rowSums(MSE)
+
+
+finalmodel <- which.min(rowSums(MSE))
+
+cat("Choose model", finalmodel, "\n")
+
+
+
+```
+
+
+
+# Part (c)
+
+## Fit this model to the data.
+
+```{r}
+
+X <- models[[finalmodel]]
+
+fit <- lm(bodyfat ~., data = X)
+summary(fit)
+
+```
+
+
+## Perform regression diagnostics.  <---   further 
+
+```{r}
+
+#par(mfrow = c(2, 2))
+plot(fit)
+
+plot(fit, which = 4)
+plot(fit, which = 6)
+
+```
+
+
+## Comment on the validity of the assumptions of the linear model.
+
+
+1. The Residual VS Fitted plot does not suggests any violations of the assumptions of the linear model. 
+
+2. The QQ plot of standardized residual shows that the standardized residuals are lighter tailed than normal(right most side). 
+
+3. The square root of standardized residual vs fitted plot and standardized residual vs leverage plot both suggests 39th observation as a potential outlier. From each plots, potential influential points are 39, 216, 175 207.
+
+
+
+
+## Identify influential observations and outliers.
+```{r}
+
+
+cooks <- data.frame(x = 1:nrow(bodyfat), cooks_distance = cooks.distance(fit))
+cooks
+
+ggplot(cooks, aes(x = x, y= cooks_distance, colour="red"))+ geom_point()+ geom_text(aes(label=x),hjust=0, vjust=0)
+
+remove1 <- which(cooks[,2] %in% sort(cooks[,2], decreasing = T)[1:2])
+remove1
+
+
+influ <- data.frame(x = 1:nrow(bodyfat), influence = influence(fit)$hat)
+influ
+ggplot(influ, aes(x = x, y= influence, colour="red"))+ geom_point()+ geom_text(aes(label=x),hjust=0, vjust=0)
+
+
+remove2 <- which(influ[,2] %in% sort(influ[,2], decreasing = T)[1:2])
+remove2
+
+```
+
+The potential influential observations and outliers can be 39th and 175th observation as we can see in the plots above.
+
+
+## Delete them if necessary and re-fit the model.
+
+```{r}
+
+X_refit <- X[-unique(c(remove1, remove2)), ]
+
+refit <- lm(bodyfat ~., data = X_refit)
+summary(refit)
+
+
+cooks <- data.frame(x = 1:(nrow(bodyfat)-2), cooks_distance = cooks.distance(refit))
+head(cooks)
+
+ggplot(cooks, aes(x = x, y= cooks_distance, colour="red"))+ geom_point()+ geom_text(aes(label=x),hjust=0, vjust=0)
+
+
+
+influ <- data.frame(x = 1:(nrow(bodyfat)-2), influence = influence(refit)$hat)
+head(influ)
+ggplot(influ, aes(x = x, y= influence, colour="red"))+ geom_point()+ geom_text(aes(label=x),hjust=0, vjust=0)
+
+
+
+```
+
+

@@ -1,0 +1,46 @@
+---
+title: "Untitled"
+author: "R Andrew Nichol"
+date: "September 5, 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(dplyr)
+```
+
+```{r}
+df = read.csv('auto.txt', sep = ',', header = F, stringsAsFactors = F)
+
+colnames(df)<-c("mpg","cyl","displacement","horsepower","weight","accel","model_year","origin","car_name")
+
+#1971 ford pinto - 75 hp
+df[33, 'horsepower'] <- 75
+#1974 ford maverick - 84 hp
+df[127, 'horsepower'] <- 84
+#1980 renault lecar deluxe - 51 hp
+df[331, 'horsepower'] <- 51
+#1980 4-cylinder ford mustang cobra - 120hp
+df[337, 'horsepower'] <- 120
+#1981 renault 18i - 78hp
+df[355, 'horsepower'] <- 78
+#1982 amc concord dl - 82hp
+df[375, 'horsepower'] <- 82
+
+df <- df %>% mutate(year = as.numeric(model_year - min(df['model_year'])), cyl =factor(cyl), horsepower = as.numeric(horsepower)) %>% select(-origin, -model_year, -car_name) 
+#calculating coefficients using lm:
+lm(mpg ~ ., data = df)
+
+cyl = df$cyl
+X <- cbind(data.frame('int'=rep(1,nrow(df))), df[,-which(colnames(df)=='cyl')])
+for(n in levels(cyl)[-1]){
+  tmp <- data.frame(as.numeric(df$cyl==n))
+  colnames(tmp) <- paste0(n,'cyl')
+  X <- cbind(tmp, X)
+}
+X <- as.matrix(X[,-which(colnames(X)=='mpg')])
+#calculating coefficients using matrices:
+solve(t(X)%*%X) %*% t(X) %*% df$mpg
+
+```

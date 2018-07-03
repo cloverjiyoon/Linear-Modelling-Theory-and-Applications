@@ -1,0 +1,299 @@
+---
+title: "151AHW5"
+author: "Jiyoon Clover Jeong"
+date: "11/26/2017"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(leaps)
+library(bestglm)
+
+```
+
+
+```{r}
+
+
+train = read.csv("/Users/cloverjiyoon/2017Fall/Stat 151A/HW/HW5/train.csv")
+test = read.csv("/Users/cloverjiyoon/2017Fall/Stat 151A/HW/HW5/test.csv")
+
+testID <- test$PassengerId
+train$PassengerId <- NULL
+test$PassengerId <- NULL
+
+train$data_type = "train"
+test$data_type = "test"
+test$Survived = ""
+whole = rbind(train, test)
+
+whole$Name <- NULL
+whole$Cabin <- NULL
+whole$Ticket <- NULL
+
+
+train$data_type = as.factor(train$data_type)
+
+whole$Pclass = as.factor(whole$Pclass)
+whole$Survived = as.numeric(whole$Survived)
+
+summary(whole)
+
+
+```
+
+
+
+```{r}
+set.seed(100)
+
+for(i in 2: dim(whole)[2]){
+  cat("Number of missing/NA values of ", names(whole)[i], "  :  ",
+      nrow(whole[whole[,i] == "", ]) , "\n" )
+}
+
+
+# Drop variable "Survived", "Name", "Ticket", "Cabin", "data_type"
+lmage <- lm(Age ~ ., data = whole[, -c(1, 9)])
+summary(lmage)
+
+# Age NA
+predictedage <- predict(lmage, whole[is.na(whole$Age), -c(1, 9)])
+whole$Age[is.na(whole$Age)] <- predictedage
+
+
+# Fare NA - median since 
+whole$Fare[is.na(whole$Fare)] <- median(whole$Fare, na.rm=TRUE)
+
+
+# Embarked NA
+whole$Embarked[whole$Embarked == ""] <- sample(c("C", "Q", "S"), size = 2,
+                                               replace = T)
+whole$Embarked = as.factor(as.character(whole$Embarked))
+
+
+
+# Check 
+
+for(i in 2: dim(whole)[2]){
+  cat("Number of missing/NA values of ", names(whole)[i], "  :  ",
+      nrow(whole[whole[,i] == "", ]) , "\n" )
+}
+
+
+
+```
+
+
+
+```{r}
+
+pairs(whole[,-9])
+
+
+plot(density(whole$Fare), main = "Density distribution of 'Fare'")
+plot(density(log(whole$Fare)), main = "Density distribution of log(Fare)")
+
+# before we transform log(Fare), change 0 value to median
+
+whole$Fare[whole$Fare == 0] <- median(whole$Fare, na.rm=TRUE)
+
+train = whole[whole$data_type == 'train',]
+test = whole[whole$data_type == 'test',]
+train$data_type = NULL
+test$data_type = NULL
+
+
+```
+
+```{r}
+
+# FUll model
+
+fit1 = glm(formula = Survived ~ Pclass + Sex + Age + SibSp + Parch + log(Fare) + Embarked , family = binomial, data = train)
+summary(fit1)
+
+
+# Obtain newtrain for bestglm object
+newtrain <- train[, c(2:8,1)]
+newtrain$Fare <- log(newtrain$Fare)
+
+
+# AIC criteria selection
+AIC.fit1 = bestglm(newtrain, family = binomial, IC = "AIC", method = "exhaustive")
+AIC.fit1$BestModels
+
+
+# BIC criteria selection
+BIC.fit1 = bestglm(newtrain, family = binomial, IC = "BIC", method = "exhaustive")
+BIC.fit1$BestModels
+
+
+```
+
+
+
+```{r}
+fit2 <- glm(formula = Survived ~ Pclass + Sex + Age + SibSp + Parch + log(Fare) + Embarked + Sex:Age, family = binomial, data = train)
+summary(fit2)
+
+AgeSex <- ifelse(whole$Sex == "male", whole$Age, 0)
+
+whole$AgeSex <- AgeSex
+train = whole[whole$data_type == 'train',]
+test = whole[whole$data_type == 'test',]
+
+train$data_type = NULL
+test$data_type = NULL
+
+# Xy for bestglm function
+newtrain = train[, c(2:9,1)]
+newtrain$Fare <- log(newtrain$Fare)
+
+AIC.fit2 = bestglm(newtrain, family = binomial, IC = "AIC")
+BIC.fit2 = bestglm(newtrain, family = binomial, IC = "BIC")
+
+
+AIC.fit2$BestModels
+BIC.fit2$BestModels
+
+```
+
+
+### AIC
+
+```{r}
+
+
+# best model from aic
+model.aic = glm(Survived ~ Pclass + Sex + SibSp + Embarked + AgeSex,
+family = binomial, data = train)
+
+
+# Find the minimum of misclassificaton rates of model.aic
+
+thres <- seq(from=0.005, to=1, by = 0.0005)
+predicted.aic <- predict(model.aic, newdata = train, type = "response")
+
+predclass.aic <- list()
+error.aic <- c()
+
+for (i in 1:length(thres)) {
+  predclass.aic[[i]] <- ifelse(predicted.aic < i*0.0005, 0, 1)
+  
+  # Misclassification rate
+  error.aic[i] <- mean(predclass.aic[[i]] != train$Survived)
+}
+
+
+plot(y = error.aic, x = thres, main = "Misclassication Rate for model.aic")
+
+# Minimum of the Misclassication rate
+min1 <- min(error.aic)
+min1
+optim1 <- which(error.aic == min(error.aic))
+cat("Optimal threshold for model.aic :", optim1 * 0.0005)
+
+summary(model.aic)
+
+```
+
+
+### BIC
+
+
+```{r}
+
+
+# best model from bic
+model.bic =  glm(Survived ~ Pclass + SibSp + AgeSex, family = binomial,
+                 data = train)
+
+# Find the minimum of misclassificaton rates of model.bic
+predicted.bic <- predict(model.bic, newdata = train, type = "response")
+predclass.bic <- list()
+error.bic <- c()
+
+for (i in 1:length(thres)) {
+  predclass.bic[[i]] <- ifelse(predicted.bic < i*0.0005, 0, 1)
+  
+  # Misclassification rate
+  error.bic[i] <- mean(predclass.bic[[i]] != train$Survived)
+}
+
+plot(y = error.bic, x = thres, main = "Misclassication Rate for model.aic")
+
+# Minimum of the Misclassication rate
+min2 <- min(error.bic)
+min2
+optim2 <- which(error.bic == min(error.bic))
+cat("Optimal threshold for model.bic :", optim2 * 0.0005)
+
+summary(model.bic)
+
+
+
+```
+
+
+
+### compare misclassfication rate between aic and bic
+
+```{r}
+
+cat("AIC minimum misclassification rate :  ", min1, "\n")
+cat("BIC minimum misclassification rate :  ", min2, "\n")
+
+cat(min1, " is smaller than ", min2, ".\n Therefore, choose the model from AIC and predict the test set\n")
+
+predicted.aic <- predict(model.aic, newdata = test, type = "response")
+
+predclass.aic <- ifelse(predicted.aic < optim1 * 0.0005, 0, 1)
+
+final <- data.frame(PassengerId = testID)
+final$Survived <- predclass.aic
+
+write.csv(final, file = "final.csv", row.names=FALSE)
+
+
+```
+
+
+### score and rank from Kaggle
+
+![Kaggle score](rank.png)
+
+
+
+## optional
+
+```{r}
+
+
+rt1 = rpart(Survived ~ Fare, method = "class", data = train)
+rt1
+
+
+
+plot(rt1)
+text(rt1, pretty = T)
+
+
+
+rt = rpart(Survived ~ as.factor(Pclass)+ Sex + SibSp + Parch + Fare + Embarked, method="class", data=train)
+rt
+
+
+
+plot(rt)
+text(rt, pretty = T)
+
+
+```
+
+
+
+
